@@ -1,5 +1,5 @@
 import { isAdmin } from "../lib/db.js";
-import { t } from "../lib/i18n.js";
+import { formatCatalog, t } from "../lib/i18n.js";
 import {
   addProduct,
   confirmAndDeliver,
@@ -60,11 +60,7 @@ async function handleMessage(message) {
       return;
     }
 
-    await telegram("sendMessage", {
-      chat_id: chatId,
-      text: t(user, "welcome"),
-      reply_markup: mainMenu(user)
-    });
+    await sendHome(chatId, user);
     return;
   }
 
@@ -181,11 +177,8 @@ async function handleCallback(query) {
   if (data.startsWith("set_lang:")) {
     const language = data.split(":")[1] === "en" ? "en" : "vi";
     user = await setUserLanguage(user.id, language);
-    await telegram("sendMessage", {
-      chat_id: chatId,
-      text: `${t(user, "languageSaved")}\n\n${t(user, "welcome")}`,
-      reply_markup: mainMenu(user)
-    });
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "languageSaved") });
+    await sendHome(chatId, user);
     return;
   }
 
@@ -254,6 +247,15 @@ async function handleCallback(query) {
     }
     await handleAdminCallback(chatId, data, user);
   }
+}
+
+async function sendHome(chatId, user) {
+  const products = await listProducts();
+  await telegram("sendMessage", {
+    chat_id: chatId,
+    text: formatCatalog(user, products),
+    reply_markup: mainMenu(user)
+  });
 }
 
 async function handleAdminCallback(chatId, data, user) {
