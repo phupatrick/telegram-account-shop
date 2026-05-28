@@ -6,6 +6,7 @@ import {
   createTicket,
   ensureUser,
   importAccounts,
+  importAccountsFromSheet,
   listPendingOrders,
   listProducts,
   listUserOrders,
@@ -50,7 +51,7 @@ async function handleMessage(message) {
   if (text === "/start") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "Chao mung ban den shop. Chon tac vu ben duoi:",
+      text: "Chào mừng bạn đến với Patrick Tech Shop. Chọn tác vụ bên dưới:",
       reply_markup: mainMenu()
     });
     return;
@@ -58,13 +59,13 @@ async function handleMessage(message) {
 
   if (text === "/admin") {
     if (!isAdmin(message.from.id)) {
-      await telegram("sendMessage", { chat_id: chatId, text: "Ban khong co quyen admin." });
+      await telegram("sendMessage", { chat_id: chatId, text: "Bạn không có quyền admin." });
       return;
     }
 
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "Bang dieu khien admin:",
+      text: "Bảng điều khiển admin:",
       reply_markup: adminMenu()
     });
     return;
@@ -76,12 +77,12 @@ async function handleMessage(message) {
       const [name, priceText, description = ""] = raw.split("|").map((part) => part.trim());
       const price = Number(priceText);
       if (!name || !Number.isFinite(price)) {
-        await telegram("sendMessage", { chat_id: chatId, text: "Dung: /addproduct Ten goi | 100000 | Mo ta" });
+        await telegram("sendMessage", { chat_id: chatId, text: "Dùng: /addproduct Tên gói | 100000 | Mô tả" });
         return;
       }
 
       const product = await addProduct(name, price, description);
-      await telegram("sendMessage", { chat_id: chatId, text: `Da tao san pham #${product.id}: ${product.name}` });
+      await telegram("sendMessage", { chat_id: chatId, text: `Đã tạo sản phẩm #${product.id}: ${product.name}` });
     });
     return;
   }
@@ -94,13 +95,50 @@ async function handleMessage(message) {
       if (!Number.isInteger(productId) || lines.length === 0) {
         await telegram("sendMessage", {
           chat_id: chatId,
-          text: "Dung:\n/import 1\nuser1|pass1\nuser2|pass2"
+          text: "Dùng:\n/import 1\nuser1|pass1\nuser2|pass2"
         });
         return;
       }
 
       const count = await importAccounts(productId, lines);
-      await telegram("sendMessage", { chat_id: chatId, text: `Da nap ${count} tai khoan vao san pham #${productId}.` });
+      await telegram("sendMessage", { chat_id: chatId, text: `Đã nạp ${count} tài khoản vào sản phẩm #${productId}.` });
+    });
+    return;
+  }
+
+  if (text.startsWith("/importsheet ")) {
+    await adminOnly(message, async () => {
+      const raw = text.replace("/importsheet ", "").trim();
+      const firstSpace = raw.indexOf(" ");
+      if (firstSpace < 0) {
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "Dùng: /importsheet 1 https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0"
+        });
+        return;
+      }
+
+      const productId = Number(raw.slice(0, firstSpace).trim());
+      const sheetUrl = raw.slice(firstSpace + 1).trim();
+
+      if (!Number.isInteger(productId) || !sheetUrl.startsWith("https://")) {
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: [
+            "Dùng:",
+            "/importsheet 1 https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0",
+            "",
+            "Sheet nên có cột đầu tiên là tài khoản, hoặc cột tên data/account/tài khoản."
+          ].join("\n")
+        });
+        return;
+      }
+
+      const count = await importAccountsFromSheet(productId, sheetUrl);
+      await telegram("sendMessage", {
+        chat_id: chatId,
+        text: `Đã nhập ${count} tài khoản từ Google Sheet vào sản phẩm #${productId}.`
+      });
     });
     return;
   }
@@ -111,22 +149,22 @@ async function handleMessage(message) {
       const { order, account } = await confirmAndDeliver(code);
       await telegram("sendMessage", {
         chat_id: order.telegram_id,
-        text: `Don ${order.code} da thanh toan.\n\nTai khoan cua ban:\n${account.data}`
+        text: `Đơn ${order.code} đã thanh toán.\n\nTài khoản của bạn:\n${account.data}`
       });
-      await telegram("sendMessage", { chat_id: chatId, text: `Da cap tai khoan cho don ${order.code}.` });
+      await telegram("sendMessage", { chat_id: chatId, text: `Đã cấp tài khoản cho đơn ${order.code}.` });
     });
     return;
   }
 
   if (text.startsWith("/ticket ")) {
     const ticket = await createTicket(user.id, text.replace("/ticket ", "").trim());
-    await telegram("sendMessage", { chat_id: chatId, text: `Da tao ticket #${ticket.id}. Admin se phan hoi som.` });
+    await telegram("sendMessage", { chat_id: chatId, text: `Đã tạo ticket #${ticket.id}. Admin sẽ phản hồi sớm.` });
     return;
   }
 
   await telegram("sendMessage", {
     chat_id: chatId,
-    text: "Minh chua hieu lenh nay. Bam /start de mo menu."
+    text: "Mình chưa hiểu lệnh này. Bấm /start để mở menu."
   });
 }
 
@@ -140,17 +178,17 @@ async function handleCallback(query) {
   if (data === "products") {
     const products = await listProducts();
     if (products.length === 0) {
-      await telegram("sendMessage", { chat_id: chatId, text: "Hien chua co san pham nao." });
+      await telegram("sendMessage", { chat_id: chatId, text: "Hiện chưa có sản phẩm nào." });
       return;
     }
 
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "Chon goi ban muon mua:",
+      text: "Chọn gói bạn muốn mua:",
       reply_markup: {
         inline_keyboard: products.map((product) => [
           {
-            text: `${product.name} - ${formatMoney(product.price)} - ton ${product.stock}`,
+            text: `${product.name} - ${formatMoney(product.price)} - còn ${product.stock}`,
             callback_data: `buy:${product.id}`
           }
         ])
@@ -165,17 +203,17 @@ async function handleCallback(query) {
     await telegram("sendMessage", {
       chat_id: chatId,
       text: [
-        `Don hang: ${order.code}`,
-        `San pham: ${product.name}`,
-        `So tien: ${formatMoney(order.amount)}`,
+        `Đơn hàng: ${order.code}`,
+        `Sản phẩm: ${product.name}`,
+        `Số tiền: ${formatMoney(order.amount)}`,
         "",
-        "Thong tin thanh toan:",
-        `Ngan hang: ${process.env.SHOP_BANK_NAME || "Chua cau hinh"}`,
-        `So tai khoan: ${process.env.SHOP_BANK_ACCOUNT || "Chua cau hinh"}`,
-        `Chu tai khoan: ${process.env.SHOP_BANK_OWNER || "Chua cau hinh"}`,
-        `Noi dung: ${order.code}`,
+        "Thông tin thanh toán:",
+        `Ngân hàng: ${process.env.SHOP_BANK_NAME || "Chưa cấu hình"}`,
+        `Số tài khoản: ${process.env.SHOP_BANK_ACCOUNT || "Chưa cấu hình"}`,
+        `Chủ tài khoản: ${process.env.SHOP_BANK_OWNER || "Chưa cấu hình"}`,
+        `Nội dung: ${order.code}`,
         "",
-        "Sau khi thanh toan, admin dung lenh:",
+        "Sau khi thanh toán, admin dùng lệnh:",
         `/confirm ${order.code}`
       ].join("\n")
     });
@@ -186,7 +224,7 @@ async function handleCallback(query) {
     const orders = await listUserOrders(user.id);
     const text = orders.length
       ? orders.map((order) => `${order.code} | ${order.product_name} | ${formatMoney(order.amount)} | ${order.status}`).join("\n")
-      : "Ban chua co don hang nao.";
+      : "Bạn chưa có đơn hàng nào.";
     await telegram("sendMessage", { chat_id: chatId, text });
     return;
   }
@@ -194,14 +232,14 @@ async function handleCallback(query) {
   if (data === "support") {
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: "Gui ticket bang lenh:\n/ticket Noi dung can ho tro"
+      text: "Gửi ticket bằng lệnh:\n/ticket Nội dung cần hỗ trợ"
     });
     return;
   }
 
   if (data.startsWith("admin_")) {
     if (!isAdmin(query.from.id)) {
-      await telegram("sendMessage", { chat_id: chatId, text: "Ban khong co quyen admin." });
+      await telegram("sendMessage", { chat_id: chatId, text: "Bạn không có quyền admin." });
       return;
     }
     await handleAdminCallback(chatId, data);
@@ -212,8 +250,8 @@ async function handleAdminCallback(chatId, data) {
   if (data === "admin_products") {
     const products = await listProducts();
     const text = products.length
-      ? products.map((p) => `#${p.id} ${p.name} | ${formatMoney(p.price)} | ton ${p.stock}`).join("\n")
-      : "Chua co san pham.\nDung: /addproduct Ten goi | 100000 | Mo ta";
+      ? products.map((p) => `#${p.id} ${p.name} | ${formatMoney(p.price)} | còn ${p.stock}`).join("\n")
+      : "Chưa có sản phẩm.\nDùng: /addproduct Tên gói | 100000 | Mô tả";
     await telegram("sendMessage", { chat_id: chatId, text });
     return;
   }
@@ -222,7 +260,7 @@ async function handleAdminCallback(chatId, data) {
     const orders = await listPendingOrders();
     const text = orders.length
       ? orders.map((o) => `${o.code} | @${o.username || o.telegram_id} | ${o.product_name} | ${formatMoney(o.amount)}\n/confirm ${o.code}`).join("\n\n")
-      : "Khong co don pending.";
+      : "Không có đơn chờ thanh toán.";
     await telegram("sendMessage", { chat_id: chatId, text });
     return;
   }
@@ -230,22 +268,22 @@ async function handleAdminCallback(chatId, data) {
   if (data === "admin_stock") {
     const rows = await stockSummary();
     const text = rows.length
-      ? rows.map((row) => `#${row.id} ${row.name} | available ${row.available} | sold ${row.sold}`).join("\n")
-      : "Chua co du lieu kho.";
+      ? rows.map((row) => `#${row.id} ${row.name} | còn ${row.available} | đã bán ${row.sold}`).join("\n")
+      : "Chưa có dữ liệu kho.";
     await telegram("sendMessage", { chat_id: chatId, text });
   }
 }
 
 async function adminOnly(message, action) {
   if (!isAdmin(message.from.id)) {
-    await telegram("sendMessage", { chat_id: message.chat.id, text: "Ban khong co quyen admin." });
+    await telegram("sendMessage", { chat_id: message.chat.id, text: "Bạn không có quyền admin." });
     return;
   }
 
   try {
     await action();
   } catch (error) {
-    await telegram("sendMessage", { chat_id: message.chat.id, text: `Loi: ${error.message}` });
+    await telegram("sendMessage", { chat_id: message.chat.id, text: `Lỗi: ${error.message}` });
   }
 }
 
