@@ -80,6 +80,12 @@ $env:APP_URL="https://your-project.vercel.app"
 npm run set-webhook
 ```
 
+Cấu hình menu lệnh trong Telegram:
+
+```bash
+npm run setup-telegram-ui
+```
+
 ## Lệnh Telegram
 
 User:

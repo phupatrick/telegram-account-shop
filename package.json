@@ -7,7 +7,8 @@
     "dev": "vercel dev",
     "init-db": "node scripts/init-db.js",
     "set-webhook": "node scripts/set-webhook.js",
-    "lint": "node --check api/telegram.js && node --check api/health.js && node --check lib/db.js && node --check lib/services.js && node --check scripts/load-env.js && node --check scripts/init-db.js && node --check scripts/set-webhook.js"
+    "setup-telegram-ui": "node scripts/setup-telegram-ui.js",
+    "lint": "node --check api/telegram.js && node --check api/health.js && node --check lib/db.js && node --check lib/services.js && node --check scripts/load-env.js && node --check scripts/init-db.js && node --check scripts/set-webhook.js && node --check scripts/setup-telegram-ui.js"
   },
   "dependencies": {
     "postgres": "^3.4.5"
