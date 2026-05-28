@@ -86,8 +86,11 @@ User:
 
 ```text
 /start
+/language
 /ticket Noi dung can ho tro
 ```
+
+Lần đầu `/start`, bot sẽ hỏi chọn `Tiếng Việt` hoặc `English`. Người dùng có thể đổi lại bằng `/language`.
 
 Admin:
 

@@ -3,8 +3,12 @@ create table if not exists users (
   telegram_id text not null unique,
   username text,
   full_name text,
+  language text,
   created_at timestamptz not null default now()
 );
+
+alter table users
+  add column if not exists language text;
 
 create table if not exists products (
   id bigserial primary key,
