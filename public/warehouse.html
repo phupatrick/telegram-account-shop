@@ -157,6 +157,36 @@
         color: var(--blue);
         font-weight: 800;
       }
+      .chat-shell {
+        display: grid;
+        gap: 12px;
+      }
+      .chat-log {
+        display: grid;
+        gap: 10px;
+        min-height: 180px;
+        max-height: 360px;
+        overflow: auto;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #f8fafc;
+      }
+      .chat-message {
+        max-width: 86%;
+        justify-self: end;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--blue);
+        color: #fff;
+        white-space: pre-wrap;
+      }
+      .chat-message.bot {
+        justify-self: start;
+        background: #fff;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
       @media (max-width: 980px) {
         main { grid-template-columns: 1fr; }
         .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -281,6 +311,7 @@
 
     <script>
       let state = { categories: [], products: [], variants: [], accounts: [], orders: [], logs: [], admins: [], drafts: [] };
+      let currentWebDraft = null;
       const tokenKey = "warehouse_session_token";
       const $ = (id) => document.getElementById(id);
 
@@ -373,8 +404,27 @@
           ];
         });
 
+        setTimeout(bindIntakeChat, 0);
         return `
           <div class="helper">
+            <section class="chat-shell">
+              <h2>Khung chat với bot nhập hàng</h2>
+              <div id="intakeChatLog" class="chat-log">
+                <div class="chat-message bot">Bạn dán nội dung hàng vào ô dưới. Bot web sẽ tự phân loại, tạo nháp và chờ bạn duyệt trước khi nhập kho.</div>
+              </div>
+              <div class="field">
+                <label>Nội dung hàng</label>
+                <textarea id="intakeChatInput" placeholder="Ví dụ: Hàng ChatGPT Plus Gmail BH 10 ngày, bên dưới là danh sách tài khoản..."></textarea>
+              </div>
+              <div class="actions">
+                <button id="intakeChatSend">Phân loại</button>
+                <button class="secondary" id="intakeChatClear">Xóa chat</button>
+              </div>
+              <div id="intakeChatActions" class="actions hidden">
+                <button id="intakeChatApprove">Duyệt nhập kho</button>
+                <button class="danger" id="intakeChatCancel">Hủy nháp</button>
+              </div>
+            </section>
             <section>
               <h2>Bot hỗ trợ nhập hàng</h2>
               <p class="muted">Bot nằm trong Telegram: mở <a href="https://t.me/patrick_tech_shop_bot" target="_blank" rel="noreferrer">@patrick_tech_shop_bot</a>, vào /admin rồi bấm "Trợ lý nhập kho". Sau đó bạn dán nội dung hàng tự do, không cần đúng mẫu.</p>
@@ -390,6 +440,84 @@ email2@gmail.com|pass2</pre>
             </section>
           </div>
         `;
+      }
+
+      function bindIntakeChat() {
+        const input = $("intakeChatInput");
+        const send = $("intakeChatSend");
+        const clear = $("intakeChatClear");
+        const approve = $("intakeChatApprove");
+        const cancel = $("intakeChatCancel");
+        if (!input || !send || send.dataset.bound) return;
+        send.dataset.bound = "1";
+
+        send.onclick = async () => {
+          const message = input.value.trim();
+          if (!message) {
+            alert("Bạn nhập nội dung hàng trước đã.");
+            return;
+          }
+          appendChat("user", message);
+          send.disabled = true;
+          try {
+            const data = await api("chat_intake_draft", { message });
+            currentWebDraft = data.draft;
+            appendChat("bot", data.text);
+            $("intakeChatActions").classList.remove("hidden");
+            input.value = "";
+          } catch (error) {
+            appendChat("bot", error.message);
+          } finally {
+            send.disabled = false;
+          }
+        };
+
+        clear.onclick = () => {
+          currentWebDraft = null;
+          $("intakeChatLog").innerHTML = `<div class="chat-message bot">Đã xóa chat. Bạn có thể dán lô hàng mới.</div>`;
+          $("intakeChatActions").classList.add("hidden");
+        };
+
+        approve.onclick = async () => {
+          if (!currentWebDraft) return;
+          approve.disabled = true;
+          try {
+            const result = await api("chat_intake_approve", { draft_id: currentWebDraft.id });
+            alert(`Đã nhập ${result.count} tài khoản vào kho.`);
+            currentWebDraft = null;
+            await load();
+          } catch (error) {
+            appendChat("bot", error.message);
+          } finally {
+            approve.disabled = false;
+          }
+        };
+
+        cancel.onclick = async () => {
+          if (!currentWebDraft) return;
+          cancel.disabled = true;
+          try {
+            await api("chat_intake_cancel", { draft_id: currentWebDraft.id });
+            appendChat("bot", `Đã hủy nháp #${currentWebDraft.id}.`);
+            currentWebDraft = null;
+            $("intakeChatActions").classList.add("hidden");
+            await load();
+          } catch (error) {
+            appendChat("bot", error.message);
+          } finally {
+            cancel.disabled = false;
+          }
+        };
+      }
+
+      function appendChat(role, message) {
+        const log = $("intakeChatLog");
+        if (!log) return;
+        const bubble = document.createElement("div");
+        bubble.className = role === "bot" ? "chat-message bot" : "chat-message";
+        bubble.innerHTML = escapeHtml(message).replace(/\n/g, "<br>");
+        log.appendChild(bubble);
+        log.scrollTop = log.scrollHeight;
       }
 
       function table(headers, rows) {

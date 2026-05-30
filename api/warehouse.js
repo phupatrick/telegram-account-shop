@@ -1,4 +1,10 @@
 import {
+  approveSmartImportDraft,
+  cancelSmartImportDraft,
+  createSmartImportDraft,
+  formatSmartImportDraft
+} from "../lib/services.js";
+import {
   assertWarehouseAuth,
   createCategory,
   createProduct,
@@ -12,7 +18,7 @@ import {
 
 export default async function handler(req, res) {
   try {
-    await assertWarehouseAuth(req);
+    const admin = await assertWarehouseAuth(req);
 
     if (req.method === "GET") {
       return res.status(200).json({ ok: true, data: await warehouseOverview() });
@@ -25,6 +31,28 @@ export default async function handler(req, res) {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     const action = body.action;
     const payload = body.payload || {};
+    const intakeActor = `web:${admin.email || "admin"}`;
+
+    if (action === "chat_intake_draft") {
+      const rawText = String(payload.message || "").trim();
+      if (!rawText) {
+        return res.status(400).json({ ok: false, error: "Vui lòng nhập nội dung hàng." });
+      }
+      const draft = await createSmartImportDraft(intakeActor, rawText);
+      return res.status(200).json({ ok: true, data: { draft, text: formatSmartImportDraft(draft) } });
+    }
+
+    if (action === "chat_intake_approve") {
+      const draftId = Number(payload.draft_id);
+      const result = await approveSmartImportDraft(draftId, intakeActor);
+      return res.status(200).json({ ok: true, data: result });
+    }
+
+    if (action === "chat_intake_cancel") {
+      const draftId = Number(payload.draft_id);
+      const draft = await cancelSmartImportDraft(draftId, intakeActor);
+      return res.status(200).json({ ok: true, data: draft });
+    }
 
     const actions = {
       create_category: createCategory,
