@@ -358,20 +358,21 @@
       }
 
       function renderTables() {
-        $("tab-products").innerHTML = table(["ID", "Danh mục", "Tên", "Giá", "Còn", "Đã bán", "Trạng thái"], state.products.map((p) => [
+        $("tab-products").innerHTML = table(["ID", "Danh mục", "Tên", "Giá", "Còn", "Đã bán", "Trạng thái", "Thao tác"], state.products.map((p) => [
           p.id,
           p.category_name || "-",
           p.name,
           money(p.price),
           badge(p.available_count, "ok"),
           p.sold_count,
-          p.is_active ? badge("Đang bán", "ok") : badge("Tắt", "bad")
+          p.is_active ? badge("Đang bán", "ok") : badge("Tắt", "bad"),
+          deleteButton("delete_product", p.id, p.name)
         ]));
-        $("tab-variants").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "BH", "Mail", "Còn", "Đã bán"], state.variants.map((v) => [
-          v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count
+        $("tab-variants").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "BH", "Mail", "Còn", "Đã bán", "Thao tác"], state.variants.map((v) => [
+          v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count, deleteButton("delete_variant", v.id, v.name)
         ]));
-        $("tab-accounts").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "Preview", "Trạng thái", "Ghi chú", "Ngày nhập"], state.accounts.map((a) => [
-          a.id, a.product_name, a.variant_name || "-", a.preview, statusBadge(a.status), a.note || "", date(a.created_at)
+        $("tab-accounts").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "Preview", "Trạng thái", "Ghi chú", "Ngày nhập", "Thao tác"], state.accounts.map((a) => [
+          a.id, a.product_name, a.variant_name || "-", a.preview, statusBadge(a.status), a.note || "", date(a.created_at), deleteButton("delete_account", a.id, a.preview)
         ]));
         $("tab-intake").innerHTML = renderIntakeHelper();
         $("tab-orders").innerHTML = table(["Mã", "User", "Sản phẩm", "Số tiền", "Trạng thái", "Ngày tạo"], state.orders.map((o) => [
@@ -400,7 +401,8 @@
             unclassified.length,
             statusBadge(draft.status),
             date(draft.created_at),
-            date(draft.reviewed_at)
+            date(draft.reviewed_at),
+            deleteButton("delete_draft", draft.id, `nháp #${draft.id}`)
           ];
         });
 
@@ -436,7 +438,7 @@ email2@gmail.com|pass2</pre>
             </section>
             <section>
               <h2>Nháp nhập hàng gần đây</h2>
-              ${table(["ID", "Admin Telegram", "Phân loại", "Chưa nhận diện", "Trạng thái", "Tạo lúc", "Duyệt lúc"], draftRows)}
+              ${table(["ID", "Admin Telegram", "Phân loại", "Chưa nhận diện", "Trạng thái", "Tạo lúc", "Duyệt lúc", "Thao tác"], draftRows)}
             </section>
           </div>
         `;
@@ -523,6 +525,9 @@ email2@gmail.com|pass2</pre>
       function table(headers, rows) {
         return `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell ?? ""}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
       }
+      function deleteButton(action, id, label) {
+        return `<button class="danger" data-delete-action="${action}" data-delete-id="${id}" data-delete-label="${escapeHtml(label || id)}">Xóa</button>`;
+      }
       function badge(value, type) { return `<span class="badge ${type || ""}">${value}</span>`; }
       function statusBadge(status) {
         const type = status === "available" || status === "delivered" ? "ok" : status === "pending" || status === "reserved" ? "warn" : "bad";
@@ -555,6 +560,22 @@ email2@gmail.com|pass2</pre>
       };
       $("logout").onclick = () => { localStorage.removeItem(tokenKey); location.reload(); };
       $("refresh").onclick = () => load().catch((error) => alert(error.message));
+      document.addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-delete-action]");
+        if (!button) return;
+        const action = button.dataset.deleteAction;
+        const id = button.dataset.deleteId;
+        const label = button.dataset.deleteLabel;
+        if (!confirm(`Xóa ${label}?`)) return;
+        button.disabled = true;
+        try {
+          await api(action, deletePayload(action, id));
+          await load();
+        } catch (error) {
+          alert(error.message);
+          button.disabled = false;
+        }
+      });
       document.querySelectorAll("[data-tab]").forEach((button) => {
         button.onclick = () => {
           document.querySelectorAll("[data-tab]").forEach((item) => item.classList.remove("active"));
@@ -589,6 +610,14 @@ email2@gmail.com|pass2</pre>
         $("adminRole").value = "admin";
         await load();
       };
+
+      function deletePayload(action, id) {
+        if (action === "delete_product") return { product_id: id };
+        if (action === "delete_variant") return { variant_id: id };
+        if (action === "delete_account") return { account_id: id };
+        if (action === "delete_draft") return { draft_id: id };
+        return { id };
+      }
 
       async function setupGoogleLogin() {
         const response = await fetch("/api/warehouse-auth", { headers: { authorization: `Bearer ${token()}` } });

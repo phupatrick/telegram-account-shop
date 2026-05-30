@@ -10,6 +10,10 @@ import {
   createProduct,
   createWarehouseAdmin,
   createVariant,
+  deleteAccount,
+  deleteImportDraft,
+  deleteProduct,
+  deleteVariant,
   importWarehouseAccounts,
   toggleProduct,
   updateAccountStatus,
@@ -61,7 +65,11 @@ export default async function handler(req, res) {
       create_admin: createWarehouseAdmin,
       import_accounts: importWarehouseAccounts,
       update_account_status: updateAccountStatus,
-      toggle_product: toggleProduct
+      toggle_product: toggleProduct,
+      delete_product: deleteProduct,
+      delete_variant: deleteVariant,
+      delete_account: deleteAccount,
+      delete_draft: deleteImportDraft
     };
 
     if (!actions[action]) {
