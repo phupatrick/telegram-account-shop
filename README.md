@@ -19,6 +19,7 @@ TELEGRAM_BOT_TOKEN=123456:telegram-token
 TELEGRAM_WEBHOOK_SECRET=change-this-long-random-secret
 ADMIN_TELEGRAM_IDS=123456789,987654321
 DATABASE_URL=postgresql://user:password@host/db?sslmode=require
+WAREHOUSE_ADMIN_TOKEN=long-random-admin-token
 SHOP_BANK_NAME=Your Bank
 SHOP_BANK_ACCOUNT=0000000000
 SHOP_BANK_OWNER=YOUR NAME
@@ -146,3 +147,21 @@ Sau đó gửi cho bot:
 ## Ghi chú vận hành
 
 Vercel không phù hợp với Telegram long polling 24/24. Project này dùng webhook nên phù hợp Vercel: Telegram gọi `/api/telegram` khi có update mới.
+
+## Web Kho Tài Khoản
+
+Web kho chạy cùng Vercel app:
+
+```text
+/warehouse.html
+```
+
+Tính năng:
+
+- Quản lý danh mục.
+- Quản lý sản phẩm/gói.
+- Quản lý biến thể theo gói.
+- Nhập kho tài khoản hàng loạt.
+- Xem tồn kho, đơn hàng, lịch sử thao tác.
+
+Web kho được bảo vệ bằng biến môi trường `WAREHOUSE_ADMIN_TOKEN`. Token này không commit lên GitHub.

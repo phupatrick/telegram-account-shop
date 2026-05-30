@@ -4,3 +4,6 @@ node_modules/
 .neon
 .local-*
 *.log
+node_modules_artifact/
+outputs/
+scratch/
