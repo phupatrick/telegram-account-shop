@@ -141,3 +141,16 @@ create table if not exists system_logs (
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+create table if not exists warehouse_import_drafts (
+  id bigserial primary key,
+  telegram_id text not null,
+  raw_text text not null,
+  parsed jsonb not null default '{}'::jsonb,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+
+create index if not exists warehouse_import_drafts_admin_idx
+  on warehouse_import_drafts (telegram_id, status, created_at desc);

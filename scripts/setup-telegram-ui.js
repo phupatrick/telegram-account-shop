@@ -15,6 +15,8 @@ const commands = [
   { command: "addproduct", description: "Admin: thêm sản phẩm" },
   { command: "import", description: "Admin: nạp kho thủ công" },
   { command: "importsheet", description: "Admin: nhập kho từ Google Sheet" },
+  { command: "nhapkho", description: "Admin: trợ lý phân loại và nhập kho" },
+  { command: "intake", description: "Admin: smart inventory intake" },
   { command: "confirm", description: "Admin: xác nhận đơn đã thanh toán" }
 ];
 

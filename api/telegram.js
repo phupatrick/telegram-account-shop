@@ -2,10 +2,14 @@ import { isAdmin } from "../lib/db.js";
 import { formatCatalog, t } from "../lib/i18n.js";
 import {
   addProduct,
+  approveSmartImportDraft,
+  cancelSmartImportDraft,
   confirmAndDeliver,
   createOrder,
+  createSmartImportDraft,
   createTicket,
   ensureUser,
+  formatSmartImportDraft,
   importAccounts,
   importAccountsFromSheet,
   listPendingOrders,
@@ -142,6 +146,52 @@ async function handleMessage(message) {
     return;
   }
 
+  if (text === "/nhapkho" || text === "/intake") {
+    await adminOnly(message, user, async () => {
+      await telegram("sendMessage", {
+        chat_id: chatId,
+        text: [
+          "Trợ lý nhập kho đang sẵn sàng.",
+          "",
+          "Gửi theo mẫu:",
+          "/nhapkho",
+          "ChatGPT Plus BH 10 ngày Gmail",
+          "email1@gmail.com|pass1",
+          "email2@gmail.com|pass2",
+          "",
+          "Bot sẽ phân loại, tạo nháp và hỏi bạn duyệt trước khi nhập kho."
+        ].join("\n")
+      });
+    });
+    return;
+  }
+
+  if (text.startsWith("/nhapkho ") || text.startsWith("/nhapkho\n") || text.startsWith("/intake ") || text.startsWith("/intake\n")) {
+    await adminOnly(message, user, async () => {
+      const raw = text.replace(/^\/(nhapkho|intake)(@\w+)?\s*/i, "").trim();
+      if (!raw) {
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: "Bạn gửi nội dung hàng ngay sau /nhapkho để bot phân loại nhé."
+        });
+        return;
+      }
+
+      const draft = await createSmartImportDraft(message.from.id, raw);
+      await telegram("sendMessage", {
+        chat_id: chatId,
+        text: formatSmartImportDraft(draft),
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Duyệt nhập kho", callback_data: `intake_approve:${draft.id}` }],
+            [{ text: "Huỷ nháp", callback_data: `intake_cancel:${draft.id}` }]
+          ]
+        }
+      });
+    });
+    return;
+  }
+
   if (text.startsWith("/confirm ")) {
     await adminOnly(message, user, async () => {
       const code = text.replace("/confirm ", "").trim().toUpperCase();
@@ -188,6 +238,33 @@ async function handleCallback(query) {
       text: t(user, "chooseLanguage"),
       reply_markup: languageMenu()
     });
+    return;
+  }
+
+  if (data.startsWith("intake_approve:") || data.startsWith("intake_cancel:")) {
+    if (!isAdmin(query.from.id)) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noAdmin") });
+      return;
+    }
+
+    const draftId = Number(data.split(":")[1]);
+    try {
+      if (data.startsWith("intake_approve:")) {
+        const result = await approveSmartImportDraft(draftId, query.from.id);
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: `Đã duyệt và nhập ${result.count} tài khoản từ nháp #${draftId}.`
+        });
+      } else {
+        await cancelSmartImportDraft(draftId, query.from.id);
+        await telegram("sendMessage", {
+          chat_id: chatId,
+          text: `Đã huỷ nháp nhập kho #${draftId}.`
+        });
+      }
+    } catch (error) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "error", error.message) });
+    }
     return;
   }
 
@@ -265,6 +342,24 @@ async function handleAdminCallback(chatId, data, user) {
       ? products.map((p) => `#${p.id} ${p.name} | ${formatMoney(p.price)} | ${t(user, "inStock")} ${p.stock}`).join("\n")
       : t(user, "noProductsAdmin");
     await telegram("sendMessage", { chat_id: chatId, text });
+    return;
+  }
+
+  if (data === "admin_intake") {
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: [
+        "Trợ lý nhập kho",
+        "",
+        "Gửi nội dung theo mẫu:",
+        "/nhapkho",
+        "ChatGPT Plus BH 10 ngày Gmail",
+        "email1@gmail.com|pass1",
+        "email2@gmail.com|pass2",
+        "",
+        "Bot sẽ tự phân loại theo sản phẩm/biến thể đang có trong kho, tạo nháp và đưa nút duyệt trước khi nhập."
+      ].join("\n")
+    });
     return;
   }
 
