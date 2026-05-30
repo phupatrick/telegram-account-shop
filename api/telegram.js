@@ -10,13 +10,16 @@ import {
   createTicket,
   ensureUser,
   formatSmartImportDraft,
+  hasActiveSmartImportSession,
   importAccounts,
   importAccountsFromSheet,
   listPendingOrders,
   listProducts,
   listUserOrders,
   setUserLanguage,
-  stockSummary
+  startSmartImportSession,
+  stockSummary,
+  stopSmartImportSession
 } from "../lib/services.js";
 import { adminMenu, languageMenu, mainMenu, telegram } from "../lib/telegram.js";
 
@@ -148,16 +151,13 @@ async function handleMessage(message) {
 
   if (text === "/nhapkho" || text === "/intake") {
     await adminOnly(message, user, async () => {
+      await startSmartImportSession(message.from.id);
       await telegram("sendMessage", {
         chat_id: chatId,
         text: [
-          "Trợ lý nhập kho đang sẵn sàng.",
+          "Trợ lý nhập kho đã bật.",
           "",
-          "Gửi theo mẫu:",
-          "/nhapkho",
-          "ChatGPT Plus BH 10 ngày Gmail",
-          "email1@gmail.com|pass1",
-          "email2@gmail.com|pass2",
+          "Bạn cứ dán nội dung hàng theo kiểu tự nhiên, không cần đúng mẫu.",
           "",
           "Bot sẽ phân loại, tạo nháp và hỏi bạn duyệt trước khi nhập kho."
         ].join("\n")
@@ -170,24 +170,17 @@ async function handleMessage(message) {
     await adminOnly(message, user, async () => {
       const raw = text.replace(/^\/(nhapkho|intake)(@\w+)?\s*/i, "").trim();
       if (!raw) {
+        await startSmartImportSession(message.from.id);
         await telegram("sendMessage", {
           chat_id: chatId,
-          text: "Bạn gửi nội dung hàng ngay sau /nhapkho để bot phân loại nhé."
+          text: "Bạn dán nội dung hàng vào tin nhắn tiếp theo, bot sẽ tự phân loại."
         });
         return;
       }
 
       const draft = await createSmartImportDraft(message.from.id, raw);
-      await telegram("sendMessage", {
-        chat_id: chatId,
-        text: formatSmartImportDraft(draft),
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "Duyệt nhập kho", callback_data: `intake_approve:${draft.id}` }],
-            [{ text: "Huỷ nháp", callback_data: `intake_cancel:${draft.id}` }]
-          ]
-        }
-      });
+      await stopSmartImportSession(message.from.id);
+      await sendImportDraft(chatId, draft);
     });
     return;
   }
@@ -209,6 +202,18 @@ async function handleMessage(message) {
     const ticket = await createTicket(user.id, text.replace("/ticket ", "").trim());
     await telegram("sendMessage", { chat_id: chatId, text: t(user, "ticketCreated", ticket.id) });
     return;
+  }
+
+  if (isAdmin(message.from.id) && text && !text.startsWith("/")) {
+    const active = await hasActiveSmartImportSession(message.from.id);
+    if (active) {
+      await adminOnly(message, user, async () => {
+        const draft = await createSmartImportDraft(message.from.id, text);
+        await stopSmartImportSession(message.from.id);
+        await sendImportDraft(chatId, draft);
+      });
+      return;
+    }
   }
 
   await telegram("sendMessage", {
@@ -253,7 +258,7 @@ async function handleCallback(query) {
         const result = await approveSmartImportDraft(draftId, query.from.id);
         await telegram("sendMessage", {
           chat_id: chatId,
-          text: `Đã duyệt và nhập ${result.count} tài khoản từ nháp #${draftId}.`
+          text: `Đã duyệt và nhập ${result.count} tài khoản từ nháp #${draftId}. Ví dụ này đã được lưu làm dữ liệu training.`
         });
       } else {
         await cancelSmartImportDraft(draftId, query.from.id);
@@ -346,18 +351,15 @@ async function handleAdminCallback(chatId, data, user) {
   }
 
   if (data === "admin_intake") {
+    await startSmartImportSession(user.telegram_id);
     await telegram("sendMessage", {
       chat_id: chatId,
       text: [
-        "Trợ lý nhập kho",
+        "Trợ lý nhập kho đã bật.",
         "",
-        "Gửi nội dung theo mẫu:",
-        "/nhapkho",
-        "ChatGPT Plus BH 10 ngày Gmail",
-        "email1@gmail.com|pass1",
-        "email2@gmail.com|pass2",
+        "Bạn dán nội dung hàng tự do vào tin nhắn tiếp theo. Không cần theo mẫu cố định.",
         "",
-        "Bot sẽ tự phân loại theo sản phẩm/biến thể đang có trong kho, tạo nháp và đưa nút duyệt trước khi nhập."
+        "Bot sẽ tự phân loại theo sản phẩm/biến thể trong kho, tạo nháp và đưa nút duyệt. Khi bạn duyệt, hệ thống cũng lưu ví dụ đó làm dữ liệu training."
       ].join("\n")
     });
     return;
@@ -390,6 +392,19 @@ async function adminOnly(message, user, action) {
   } catch (error) {
     await telegram("sendMessage", { chat_id: message.chat.id, text: t(user, "error", error.message) });
   }
+}
+
+async function sendImportDraft(chatId, draft) {
+  await telegram("sendMessage", {
+    chat_id: chatId,
+    text: formatSmartImportDraft(draft),
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "Duyệt nhập kho", callback_data: `intake_approve:${draft.id}` }],
+        [{ text: "Huỷ nháp", callback_data: `intake_cancel:${draft.id}` }]
+      ]
+    }
+  });
 }
 
 function formatMoney(value) {

@@ -154,3 +154,21 @@ create table if not exists warehouse_import_drafts (
 
 create index if not exists warehouse_import_drafts_admin_idx
   on warehouse_import_drafts (telegram_id, status, created_at desc);
+
+create table if not exists warehouse_intake_sessions (
+  telegram_id text primary key,
+  is_active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists warehouse_import_training_examples (
+  id bigserial primary key,
+  draft_id bigint references warehouse_import_drafts(id),
+  telegram_id text not null,
+  raw_text text not null,
+  parsed jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists warehouse_import_training_examples_admin_idx
+  on warehouse_import_training_examples (telegram_id, created_at desc);
