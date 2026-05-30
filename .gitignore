@@ -3,6 +3,7 @@ node_modules/
 .vercel/
 .neon
 .local-*
+.local-warehouse-auth
 *.log
 node_modules_artifact/
 outputs/

@@ -148,12 +148,20 @@
   <body>
     <div id="auth" class="auth panel">
       <h1>Kho tài khoản Patrick Tech Shop</h1>
-      <p class="muted">Nhập token quản trị để mở web kho.</p>
+      <p class="muted">Đăng nhập bằng Gmail quản trị hoặc Google.</p>
       <div class="field">
-        <label>Admin token</label>
-        <input id="tokenInput" type="password" placeholder="WAREHOUSE_ADMIN_TOKEN" />
+        <label>Email</label>
+        <input id="emailInput" type="email" placeholder="admin@gmail.com" autocomplete="username" />
       </div>
-      <p><button id="saveToken">Mở kho</button></p>
+      <div class="field">
+        <label>Mật khẩu</label>
+        <input id="passwordInput" type="password" placeholder="Mật khẩu quản trị" autocomplete="current-password" />
+      </div>
+      <p class="actions">
+        <button id="loginPassword">Đăng nhập</button>
+        <button class="secondary" id="loginGoogle" type="button">Đăng nhập Google</button>
+      </p>
+      <p id="googleHint" class="muted"></p>
     </div>
 
     <div id="app" class="hidden">
@@ -253,15 +261,15 @@
 
     <script>
       let state = { categories: [], products: [], variants: [], accounts: [], orders: [], logs: [], admins: [] };
-      const tokenKey = "warehouse_admin_token";
+      const tokenKey = "warehouse_session_token";
       const $ = (id) => document.getElementById(id);
 
       function token() { return localStorage.getItem(tokenKey) || ""; }
 
       async function api(action, payload) {
         const options = action
-          ? { method: "POST", headers: { "content-type": "application/json", "x-admin-token": token() }, body: JSON.stringify({ action, payload }) }
-          : { headers: { "x-admin-token": token() } };
+          ? { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token()}` }, body: JSON.stringify({ action, payload }) }
+          : { headers: { authorization: `Bearer ${token()}` } };
         const response = await fetch("/api/warehouse", options);
         const data = await response.json();
         if (!data.ok) throw new Error(data.error || "Có lỗi xảy ra");
@@ -339,9 +347,24 @@
         return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
       }
 
-      $("saveToken").onclick = async () => {
-        localStorage.setItem(tokenKey, $("tokenInput").value.trim());
-        try { await load(); } catch (error) { alert(error.message); }
+      $("loginPassword").onclick = async () => {
+        try {
+          const response = await fetch("/api/warehouse-auth", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              provider: "password",
+              email: $("emailInput").value.trim(),
+              password: $("passwordInput").value
+            })
+          });
+          const result = await response.json();
+          if (!result.ok) throw new Error(result.error || "Đăng nhập thất bại");
+          localStorage.setItem(tokenKey, result.data.token);
+          await load();
+        } catch (error) {
+          alert(error.message);
+        }
       };
       $("logout").onclick = () => { localStorage.removeItem(tokenKey); location.reload(); };
       $("refresh").onclick = () => load().catch((error) => alert(error.message));
@@ -379,6 +402,44 @@
         $("adminRole").value = "admin";
         await load();
       };
+
+      async function setupGoogleLogin() {
+        const response = await fetch("/api/warehouse-auth", { headers: { authorization: `Bearer ${token()}` } });
+        const result = await response.json();
+        const clientId = result.data?.googleClientId;
+        if (!clientId) {
+          $("googleHint").textContent = "Google login chưa bật: cần cấu hình GOOGLE_CLIENT_ID trên Vercel. Email + mật khẩu đã dùng được.";
+          $("loginGoogle").disabled = true;
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.onload = () => {
+          google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (credentialResponse) => {
+              const login = await fetch("/api/warehouse-auth", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ provider: "google", idToken: credentialResponse.credential })
+              });
+              const data = await login.json();
+              if (!data.ok) {
+                alert(data.error || "Google login thất bại");
+                return;
+              }
+              localStorage.setItem(tokenKey, data.data.token);
+              await load();
+            }
+          });
+          $("loginGoogle").onclick = () => google.accounts.id.prompt();
+        };
+        document.head.appendChild(script);
+      }
+
+      setupGoogleLogin();
 
       if (token()) {
         load().catch(() => {

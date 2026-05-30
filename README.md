@@ -20,6 +20,10 @@ TELEGRAM_WEBHOOK_SECRET=change-this-long-random-secret
 ADMIN_TELEGRAM_IDS=123456789,987654321
 DATABASE_URL=postgresql://user:password@host/db?sslmode=require
 WAREHOUSE_ADMIN_TOKEN=long-random-admin-token
+WAREHOUSE_PASSWORD_SALT=random-password-salt
+WAREHOUSE_PASSWORD_HASH=pbkdf2-password-hash
+WAREHOUSE_SESSION_SECRET=long-random-session-secret
+GOOGLE_CLIENT_ID=google-oauth-client-id.apps.googleusercontent.com
 SHOP_BANK_NAME=Your Bank
 SHOP_BANK_ACCOUNT=0000000000
 SHOP_BANK_OWNER=YOUR NAME
@@ -166,4 +170,11 @@ Tính năng:
 - Xem tồn kho, đơn hàng, lịch sử thao tác.
 - Quản lý danh sách admin.
 
-Web kho được bảo vệ bằng biến môi trường `WAREHOUSE_ADMIN_TOKEN`. Token này không commit lên GitHub.
+Web kho hỗ trợ đăng nhập bằng email + mật khẩu cho các email admin trong bảng `warehouse_admins`. Google login cần cấu hình thêm `GOOGLE_CLIENT_ID` trong Vercel.
+
+Các secret đăng nhập không commit lên GitHub:
+
+- `WAREHOUSE_PASSWORD_SALT`
+- `WAREHOUSE_PASSWORD_HASH`
+- `WAREHOUSE_SESSION_SECRET`
+- `GOOGLE_CLIENT_ID`
