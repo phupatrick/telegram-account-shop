@@ -159,8 +159,8 @@
       </div>
       <p class="actions">
         <button id="loginPassword">Đăng nhập</button>
-        <button class="secondary" id="loginGoogle" type="button">Đăng nhập Google</button>
       </p>
+      <div id="googleButton"></div>
       <p id="googleHint" class="muted"></p>
     </div>
 
@@ -434,7 +434,13 @@
               await load();
             }
           });
-          $("loginGoogle").onclick = () => google.accounts.id.prompt();
+          google.accounts.id.renderButton($("googleButton"), {
+            theme: "outline",
+            size: "large",
+            text: "signin_with",
+            shape: "rectangular",
+            width: 320
+          });
         };
         document.head.appendChild(script);
       }
