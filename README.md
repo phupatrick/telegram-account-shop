@@ -150,10 +150,11 @@ Vercel không phù hợp với Telegram long polling 24/24. Project này dùng w
 
 ## Web Kho Tài Khoản
 
-Web kho chạy cùng Vercel app:
+Web tool quản lý kho chạy cùng Vercel app:
 
 ```text
 /warehouse.html
+/manager.html
 ```
 
 Tính năng:
@@ -163,5 +164,6 @@ Tính năng:
 - Quản lý biến thể theo gói.
 - Nhập kho tài khoản hàng loạt.
 - Xem tồn kho, đơn hàng, lịch sử thao tác.
+- Quản lý danh sách admin.
 
 Web kho được bảo vệ bằng biến môi trường `WAREHOUSE_ADMIN_TOKEN`. Token này không commit lên GitHub.

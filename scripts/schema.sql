@@ -28,6 +28,14 @@ create table if not exists categories (
   created_at timestamptz not null default now()
 );
 
+create table if not exists warehouse_admins (
+  id bigserial primary key,
+  email text not null unique,
+  role text not null default 'admin',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 alter table products
   add column if not exists category_id bigint;
 

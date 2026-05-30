@@ -2,6 +2,7 @@ import {
   assertWarehouseAuth,
   createCategory,
   createProduct,
+  createWarehouseAdmin,
   createVariant,
   importWarehouseAccounts,
   toggleProduct,
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
       create_category: createCategory,
       create_product: createProduct,
       create_variant: createVariant,
+      create_admin: createWarehouseAdmin,
       import_accounts: importWarehouseAccounts,
       update_account_status: updateAccountStatus,
       toggle_product: toggleProduct

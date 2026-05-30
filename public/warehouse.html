@@ -211,6 +211,15 @@
               <button data-action="accounts">Nhập kho</button>
             </div>
           </section>
+
+          <section>
+            <h2>Thêm quản trị viên</h2>
+            <div class="stack">
+              <div class="field"><label>Email</label><input id="adminEmail" placeholder="admin@gmail.com" /></div>
+              <div class="field"><label>Vai trò</label><input id="adminRole" value="admin" /></div>
+              <button data-action="admin">Lưu admin</button>
+            </div>
+          </section>
         </aside>
 
         <div>
@@ -219,6 +228,7 @@
             <section class="metric"><span>Sản phẩm</span><strong id="mProducts">0</strong></section>
             <section class="metric"><span>Tài khoản còn</span><strong id="mAvailable">0</strong></section>
             <section class="metric"><span>Đơn gần đây</span><strong id="mOrders">0</strong></section>
+            <section class="metric"><span>Quản trị viên</span><strong id="mAdmins">0</strong></section>
           </div>
 
           <div class="panel">
@@ -228,19 +238,21 @@
               <button data-tab="accounts">Kho tài khoản</button>
               <button data-tab="orders">Đơn hàng</button>
               <button data-tab="logs">Lịch sử</button>
+              <button data-tab="admins">Quản trị</button>
             </div>
             <div id="tab-products" class="tab active"></div>
             <div id="tab-variants" class="tab"></div>
             <div id="tab-accounts" class="tab"></div>
             <div id="tab-orders" class="tab"></div>
             <div id="tab-logs" class="tab"></div>
+            <div id="tab-admins" class="tab"></div>
           </div>
         </div>
       </main>
     </div>
 
     <script>
-      let state = { categories: [], products: [], variants: [], accounts: [], orders: [], logs: [] };
+      let state = { categories: [], products: [], variants: [], accounts: [], orders: [], logs: [], admins: [] };
       const tokenKey = "warehouse_admin_token";
       const $ = (id) => document.getElementById(id);
 
@@ -268,6 +280,7 @@
         $("mProducts").textContent = state.products.length;
         $("mAvailable").textContent = state.products.reduce((sum, p) => sum + Number(p.available_count || 0), 0);
         $("mOrders").textContent = state.orders.length;
+        $("mAdmins").textContent = state.admins.length;
         renderSelects();
         renderTables();
       }
@@ -306,6 +319,9 @@
         ]));
         $("tab-logs").innerHTML = table(["ID", "Sự kiện", "Payload", "Thời gian"], state.logs.map((l) => [
           l.id, l.event, `<code>${escapeHtml(JSON.stringify(l.payload))}</code>`, date(l.created_at)
+        ]));
+        $("tab-admins").innerHTML = table(["ID", "Email", "Vai trò", "Trạng thái", "Ngày tạo"], state.admins.map((admin) => [
+          admin.id, admin.email, admin.role, admin.is_active ? badge("active", "ok") : badge("off", "bad"), date(admin.created_at)
         ]));
       }
 
@@ -355,6 +371,12 @@
       document.querySelector("[data-action='accounts']").onclick = async () => {
         await api("import_accounts", { product_id: $("accountProduct").value, variant_id: $("accountVariant").value, lines: $("accountLines").value, note: $("accountNote").value });
         $("accountLines").value = "";
+        await load();
+      };
+      document.querySelector("[data-action='admin']").onclick = async () => {
+        await api("create_admin", { email: $("adminEmail").value, role: $("adminRole").value });
+        $("adminEmail").value = "";
+        $("adminRole").value = "admin";
         await load();
       };
 
