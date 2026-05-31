@@ -1,5 +1,5 @@
 import { isAdmin } from "../lib/db.js";
-import { formatCatalog, t, vietQrUrl, withUsdQuote } from "../lib/i18n.js";
+import { formatBankPayment, formatBinancePayment, formatCatalog, t, vietQrUrl, withUsdQuote } from "../lib/i18n.js";
 import {
   addProduct,
   approveSmartImportDraft,
@@ -9,6 +9,7 @@ import {
   createSmartImportDraft,
   createTicket,
   ensureUser,
+  getUserPendingOrder,
   formatSmartImportDraft,
   hasActiveSmartImportSession,
   importAccounts,
@@ -278,8 +279,9 @@ async function handleCallback(query) {
 
   if (data === "products") {
     const products = await listProducts();
-    if (products.length === 0) {
-      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProducts") });
+    const availableProducts = products.filter((product) => Number(product.stock || 0) > 0);
+    if (availableProducts.length === 0) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProductsInStock") });
       return;
     }
 
@@ -287,7 +289,7 @@ async function handleCallback(query) {
       chat_id: chatId,
       text: t(user, "chooseProduct"),
       reply_markup: {
-        inline_keyboard: products.map((product) => [
+        inline_keyboard: availableProducts.map((product) => [
           {
             text: `${product.name} - ${formatMoney(product.price)} - ${t(user, "inStock")} ${product.stock}`,
             callback_data: `buy:${product.id}`
@@ -300,17 +302,45 @@ async function handleCallback(query) {
 
   if (data.startsWith("buy:")) {
     const productId = Number(data.split(":")[1]);
-    const { order, product } = await createOrder(user.id, productId);
+    try {
+      const { order, product } = await createOrder(user.id, productId);
+      const quotedOrder = await withUsdQuote(order);
+      await telegram("sendMessage", {
+        chat_id: chatId,
+        text: t(user, "orderCreated", quotedOrder, product),
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "ACB / VietQR", callback_data: `pay_bank:${order.code}` }],
+            [{ text: "Binance Pay / USDT", callback_data: `pay_binance:${order.code}` }]
+          ]
+        }
+      });
+    } catch (error) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "outOfStock") });
+    }
+    return;
+  }
+
+  if (data.startsWith("pay_bank:") || data.startsWith("pay_binance:")) {
+    const orderCode = data.split(":")[1];
+    const order = await getUserPendingOrder(orderCode, user.id);
+    if (!order) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noOrders") });
+      return;
+    }
     const quotedOrder = await withUsdQuote(order);
-    await telegram("sendMessage", {
-      chat_id: chatId,
-      text: t(user, "orderCreated", quotedOrder, product)
-    });
-    await telegram("sendPhoto", {
-      chat_id: chatId,
-      photo: vietQrUrl(quotedOrder),
-      caption: `VietQR ${quotedOrder.code} - ${formatMoney(quotedOrder.amount)}`
-    });
+    if (data.startsWith("pay_bank:")) {
+      await telegram("sendPhoto", {
+        chat_id: chatId,
+        photo: vietQrUrl(quotedOrder),
+        caption: formatBankPayment(user, quotedOrder)
+      });
+    } else {
+      await telegram("sendMessage", {
+        chat_id: chatId,
+        text: formatBinancePayment(user, quotedOrder)
+      });
+    }
     return;
   }
 
