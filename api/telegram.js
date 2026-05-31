@@ -21,7 +21,7 @@ import {
   stockSummary,
   stopSmartImportSession
 } from "../lib/services.js";
-import { adminMenu, languageMenu, mainMenu, telegram } from "../lib/telegram.js";
+import { adminMenu, languageMenu, mainMenu, telegram, warehouseUrl } from "../lib/telegram.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -160,7 +160,10 @@ async function handleMessage(message) {
           "Bạn cứ dán nội dung hàng theo kiểu tự nhiên, không cần đúng mẫu.",
           "",
           "Bot sẽ phân loại, tạo nháp và hỏi bạn duyệt trước khi nhập kho."
-        ].join("\n")
+        ].join("\n"),
+        reply_markup: {
+          inline_keyboard: [[{ text: "Mở kho web", url: warehouseUrl() }]]
+        }
       });
     });
     return;
@@ -366,7 +369,10 @@ async function handleAdminCallback(chatId, data, user) {
         "Bạn dán nội dung hàng tự do vào tin nhắn tiếp theo. Không cần theo mẫu cố định.",
         "",
         "Bot sẽ tự phân loại theo sản phẩm/biến thể trong kho, tạo nháp và đưa nút duyệt. Khi bạn duyệt, hệ thống cũng lưu ví dụ đó làm dữ liệu training."
-      ].join("\n")
+      ].join("\n"),
+      reply_markup: {
+        inline_keyboard: [[{ text: "Mở kho web", url: warehouseUrl() }]]
+      }
     });
     return;
   }
