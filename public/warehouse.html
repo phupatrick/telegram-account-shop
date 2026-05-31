@@ -49,14 +49,19 @@
         cursor: pointer;
         font-weight: 700;
       }
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
       button.secondary { background: #e2e8f0; color: #0f172a; }
       button.danger { background: var(--red); }
       main {
         display: grid;
-        grid-template-columns: 340px 1fr;
+        grid-template-columns: 1fr;
         gap: 16px;
         padding: 16px;
       }
+      aside { display: none; }
       section, .panel {
         background: var(--panel);
         border: 1px solid var(--line);
@@ -89,9 +94,14 @@
       .metric span { color: var(--muted); font-size: 12px; font-weight: 700; }
       .tabs {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         padding: 10px;
         border-bottom: 1px solid var(--line);
+        background: #fff;
+        position: sticky;
+        top: 77px;
+        z-index: 5;
       }
       .tabs button {
         background: #edf2f7;
@@ -103,6 +113,7 @@
       }
       .tab { display: none; padding: 12px; overflow-x: auto; }
       .tab.active { display: block; }
+      .tab section + section { margin-top: 14px; }
       table {
         width: 100%;
         border-collapse: collapse;
@@ -134,6 +145,22 @@
         margin: 12vh auto;
         padding: 24px;
       }
+      .toast {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 30;
+        max-width: min(420px, calc(100vw - 36px));
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: #0f172a;
+        color: #fff;
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+        font-weight: 700;
+      }
+      .toast.ok { background: #166534; }
+      .toast.bad { background: #991b1b; }
       .hidden { display: none; }
       .actions { display: flex; gap: 8px; flex-wrap: wrap; }
       .muted { color: var(--muted); }
@@ -221,6 +248,7 @@
       <div id="googleButton"></div>
       <p id="googleHint" class="muted"></p>
     </div>
+    <div id="toast" class="toast hidden"></div>
 
     <div id="app" class="hidden">
       <header>
@@ -362,9 +390,12 @@
       }
 
       function fillSelect(select, rows, empty) {
+        if (!select) return;
         const current = select.value;
         select.innerHTML = `<option value="">${empty}</option>` + rows.map((row) => `<option value="${row.id}">#${row.id} ${escapeHtml(row.name)}</option>`).join("");
-        select.value = current;
+        if ([...select.options].some((option) => option.value === current)) {
+          select.value = current;
+        }
       }
 
       function renderTables() {
@@ -448,9 +479,20 @@
         $("tab-logs").innerHTML = table(["ID", "Sự kiện", "Payload", "Thời gian"], state.logs.map((l) => [
           l.id, l.event, `<code>${escapeHtml(JSON.stringify(l.payload))}</code>`, date(l.created_at)
         ]));
-        $("tab-admins").innerHTML = table(["ID", "Email", "Vai trò", "Trạng thái", "Ngày tạo"], state.admins.map((admin) => [
+        const adminForm = `
+          <section class="stack">
+            <h2>Thêm quản trị viên</h2>
+            <div class="form-grid">
+              <div class="field"><label>Email</label><input id="adminEmailTab" placeholder="admin@gmail.com" /></div>
+              <div class="field"><label>Vai trò</label><input id="adminRoleTab" value="admin" /></div>
+              <div class="field"><label>&nbsp;</label><button id="saveAdminTab">Lưu admin</button></div>
+            </div>
+          </section>
+        `;
+        const adminTable = table(["ID", "Email", "Vai trò", "Trạng thái", "Ngày tạo"], state.admins.map((admin) => [
           admin.id, admin.email, admin.role, admin.is_active ? badge("active", "ok") : badge("off", "bad"), date(admin.created_at)
         ]));
+        $("tab-admins").innerHTML = `${adminForm}<section><h2>Quản trị viên</h2>${adminTable}</section>`;
         setTimeout(bindCatalogForms, 0);
       }
 
@@ -571,6 +613,7 @@
           currentWebDraft = null;
           $("intakeChatLog").innerHTML = `<div class="chat-message bot">Đã xóa. Dán lô hàng mới rồi bấm Xem trước.</div>`;
           $("intakeChatActions").classList.add("hidden");
+          notify("Đã xóa khung nhập nhanh.");
         };
 
         approve.onclick = async () => {
@@ -578,7 +621,7 @@
           approve.disabled = true;
           try {
             const result = await api("chat_intake_approve", { draft_id: currentWebDraft.id });
-            alert(`Đã nhập ${result.count} tài khoản.`);
+            notify(`Đã nhập ${result.count} tài khoản.`);
             currentWebDraft = null;
             await load();
           } catch (error) {
@@ -594,6 +637,7 @@
           try {
             await api("chat_intake_cancel", { draft_id: currentWebDraft.id });
             appendChat("bot", `Đã hủy nháp #${currentWebDraft.id}.`);
+            notify(`Đã hủy nháp #${currentWebDraft.id}.`);
             currentWebDraft = null;
             $("intakeChatActions").classList.add("hidden");
             await load();
@@ -645,11 +689,11 @@
 
         submit.onclick = async () => {
           if (!product.value) {
-            alert("Chọn sản phẩm trước đã.");
+            notify("Chọn sản phẩm trước đã.", "bad");
             return;
           }
           if (!lines.value.trim()) {
-            alert("Dán ít nhất một tài khoản.");
+            notify("Dán ít nhất một tài khoản.", "bad");
             return;
           }
           submit.disabled = true;
@@ -660,12 +704,12 @@
               lines: lines.value,
               note: note.value
             });
-            alert(`Đã nhập ${result.count || 0} tài khoản.`);
+            notify(`Đã nhập ${result.count || 0} tài khoản.`);
             lines.value = "";
             note.value = "";
             await load();
           } catch (error) {
-            alert(error.message);
+            notify(error.message, "bad");
           } finally {
             submit.disabled = false;
           }
@@ -676,17 +720,21 @@
         const categoryButton = $("saveCategoryTab");
         const productButton = $("saveProductTab");
         const variantButton = $("saveVariantTab");
+        const adminButton = $("saveAdminTab");
 
         if (categoryButton && !categoryButton.dataset.bound) {
           categoryButton.dataset.bound = "1";
           categoryButton.onclick = async () => {
-            await api("create_category", {
-              name: $("categoryNameTab").value,
-              description: $("categoryDescriptionTab").value
+            await runButton(categoryButton, async () => {
+              await api("create_category", {
+                name: $("categoryNameTab").value,
+                description: $("categoryDescriptionTab").value
+              });
+              $("categoryNameTab").value = "";
+              $("categoryDescriptionTab").value = "";
+              notify("Đã lưu danh mục.");
+              await load();
             });
-            $("categoryNameTab").value = "";
-            $("categoryDescriptionTab").value = "";
-            await load();
           };
         }
 
@@ -694,16 +742,19 @@
           productButton.dataset.bound = "1";
           fillSelect($("productCategoryTab"), state.categories, "Không chọn danh mục");
           productButton.onclick = async () => {
-            await api("create_product", {
-              category_id: $("productCategoryTab").value,
-              name: $("productNameTab").value,
-              price: $("productPriceTab").value,
-              description: $("productDescriptionTab").value
+            await runButton(productButton, async () => {
+              await api("create_product", {
+                category_id: $("productCategoryTab").value,
+                name: $("productNameTab").value,
+                price: $("productPriceTab").value,
+                description: $("productDescriptionTab").value
+              });
+              $("productNameTab").value = "";
+              $("productPriceTab").value = "";
+              $("productDescriptionTab").value = "";
+              notify("Đã lưu sản phẩm.");
+              await load();
             });
-            $("productNameTab").value = "";
-            $("productPriceTab").value = "";
-            $("productDescriptionTab").value = "";
-            await load();
           };
         }
 
@@ -711,18 +762,58 @@
           variantButton.dataset.bound = "1";
           fillSelect($("variantProductTab"), state.products, "Chọn sản phẩm");
           variantButton.onclick = async () => {
-            await api("create_variant", {
-              product_id: $("variantProductTab").value,
-              name: $("variantNameTab").value,
-              warranty_days: $("variantWarrantyTab").value,
-              mail_type: $("variantMailTab").value
+            await runButton(variantButton, async () => {
+              await api("create_variant", {
+                product_id: $("variantProductTab").value,
+                name: $("variantNameTab").value,
+                warranty_days: $("variantWarrantyTab").value,
+                mail_type: $("variantMailTab").value
+              });
+              $("variantNameTab").value = "";
+              $("variantWarrantyTab").value = "0";
+              $("variantMailTab").value = "";
+              notify("Đã lưu biến thể.");
+              await load();
             });
-            $("variantNameTab").value = "";
-            $("variantWarrantyTab").value = "0";
-            $("variantMailTab").value = "";
-            await load();
           };
         }
+
+        if (adminButton && !adminButton.dataset.bound) {
+          adminButton.dataset.bound = "1";
+          adminButton.onclick = async () => {
+            await runButton(adminButton, async () => {
+              await api("create_admin", {
+                email: $("adminEmailTab").value,
+                role: $("adminRoleTab").value
+              });
+              $("adminEmailTab").value = "";
+              $("adminRoleTab").value = "admin";
+              notify("Đã lưu quản trị viên.");
+              await load();
+            });
+          };
+        }
+      }
+
+      async function runButton(button, action) {
+        button.disabled = true;
+        try {
+          await action();
+        } catch (error) {
+          notify(error.message, "bad");
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      let toastTimer;
+      function notify(message, type = "ok") {
+        const toast = $("toast");
+        if (!toast) return;
+        toast.textContent = message;
+        toast.className = `toast ${type}`;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.add("hidden"), 2600);
       }
 
       function appendChat(role, message) {
@@ -772,7 +863,7 @@
         }
       };
       $("logout").onclick = () => { localStorage.removeItem(tokenKey); location.reload(); };
-      $("refresh").onclick = () => load().catch((error) => alert(error.message));
+      $("refresh").onclick = () => load().then(() => notify("Đã làm mới dữ liệu.")).catch((error) => notify(error.message, "bad"));
       document.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-delete-action]");
         if (!button) return;
@@ -783,9 +874,10 @@
         button.disabled = true;
         try {
           await api(action, deletePayload(action, id));
+          notify(`Đã xóa ${label}.`);
           await load();
         } catch (error) {
-          alert(error.message);
+          notify(error.message, "bad");
           button.disabled = false;
         }
       });
