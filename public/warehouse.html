@@ -155,6 +155,9 @@
         color: var(--blue);
         font-weight: 800;
       }
+      aside section:has([data-action="category"]),
+      aside section:has([data-action="product"]),
+      aside section:has([data-action="variant"]),
       aside section:has([data-action="accounts"]) {
         display: none;
       }
@@ -365,6 +368,28 @@
       }
 
       function renderTables() {
+        const categoryForm = `
+          <section class="stack">
+            <h2>Thêm danh mục</h2>
+            <div class="form-grid">
+              <div class="field"><label>Tên</label><input id="categoryNameTab" placeholder="ChatGPT, Gemini, Claude..." /></div>
+              <div class="field"><label>Mô tả</label><input id="categoryDescriptionTab" placeholder="Nhóm tài khoản AI" /></div>
+              <div class="field"><label>&nbsp;</label><button id="saveCategoryTab">Lưu danh mục</button></div>
+            </div>
+          </section>
+        `;
+        const productForm = `
+          <section class="stack">
+            <h2>Thêm sản phẩm / gói</h2>
+            <div class="form-grid">
+              <div class="field"><label>Danh mục</label><select id="productCategoryTab"></select></div>
+              <div class="field"><label>Tên gói</label><input id="productNameTab" placeholder="ChatGPT Plus" /></div>
+              <div class="field"><label>Giá</label><input id="productPriceTab" type="number" placeholder="100000" /></div>
+            </div>
+            <div class="field"><label>Mô tả hiện trên bot</label><textarea id="productDescriptionTab" placeholder="BH 10 ngày, Outlook/Gmail..."></textarea></div>
+            <div class="actions"><button id="saveProductTab">Lưu sản phẩm</button></div>
+          </section>
+        `;
         const categoryTable = table(["ID", "Tên", "Mô tả", "Sản phẩm", "Tài khoản còn", "Thao tác"], state.categories.map((c) => [
           c.id,
           c.name,
@@ -384,6 +409,8 @@
           deleteButton("delete_product", p.id, p.name)
         ]));
         $("tab-products").innerHTML = `
+          ${categoryForm}
+          ${productForm}
           <section>
             <h2>Danh mục</h2>
             ${categoryTable}
@@ -393,9 +420,24 @@
             ${productTable}
           </section>
         `;
-        $("tab-variants").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "BH", "Mail", "Còn", "Đã bán", "Thao tác"], state.variants.map((v) => [
+        const variantForm = `
+          <section class="stack">
+            <h2>Thêm biến thể</h2>
+            <div class="form-grid">
+              <div class="field"><label>Sản phẩm</label><select id="variantProductTab"></select></div>
+              <div class="field"><label>Tên biến thể</label><input id="variantNameTab" placeholder="BH 10 ngày - Gmail" /></div>
+              <div class="field"><label>Số ngày bảo hành</label><input id="variantWarrantyTab" type="number" value="0" /></div>
+            </div>
+            <div class="form-grid">
+              <div class="field"><label>Loại mail</label><input id="variantMailTab" placeholder="random / outlook / gmail" /></div>
+              <div class="field"><label>&nbsp;</label><button id="saveVariantTab">Lưu biến thể</button></div>
+            </div>
+          </section>
+        `;
+        const variantTable = table(["ID", "Sản phẩm", "Biến thể", "BH", "Mail", "Còn", "Đã bán", "Thao tác"], state.variants.map((v) => [
           v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count, deleteButton("delete_variant", v.id, v.name)
         ]));
+        $("tab-variants").innerHTML = `${variantForm}<section><h2>Biến thể</h2>${variantTable}</section>`;
         $("tab-accounts").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "Preview", "Trạng thái", "Ghi chú", "Ngày nhập", "Thao tác"], state.accounts.map((a) => [
           a.id, a.product_name, a.variant_name || "-", a.preview, statusBadge(a.status), a.note || "", date(a.created_at), deleteButton("delete_account", a.id, a.preview)
         ]));
@@ -409,6 +451,7 @@
         $("tab-admins").innerHTML = table(["ID", "Email", "Vai trò", "Trạng thái", "Ngày tạo"], state.admins.map((admin) => [
           admin.id, admin.email, admin.role, admin.is_active ? badge("active", "ok") : badge("off", "bad"), date(admin.created_at)
         ]));
+        setTimeout(bindCatalogForms, 0);
       }
 
       function renderIntakeHelper() {
@@ -627,6 +670,59 @@
             submit.disabled = false;
           }
         };
+      }
+
+      function bindCatalogForms() {
+        const categoryButton = $("saveCategoryTab");
+        const productButton = $("saveProductTab");
+        const variantButton = $("saveVariantTab");
+
+        if (categoryButton && !categoryButton.dataset.bound) {
+          categoryButton.dataset.bound = "1";
+          categoryButton.onclick = async () => {
+            await api("create_category", {
+              name: $("categoryNameTab").value,
+              description: $("categoryDescriptionTab").value
+            });
+            $("categoryNameTab").value = "";
+            $("categoryDescriptionTab").value = "";
+            await load();
+          };
+        }
+
+        if (productButton && !productButton.dataset.bound) {
+          productButton.dataset.bound = "1";
+          fillSelect($("productCategoryTab"), state.categories, "Không chọn danh mục");
+          productButton.onclick = async () => {
+            await api("create_product", {
+              category_id: $("productCategoryTab").value,
+              name: $("productNameTab").value,
+              price: $("productPriceTab").value,
+              description: $("productDescriptionTab").value
+            });
+            $("productNameTab").value = "";
+            $("productPriceTab").value = "";
+            $("productDescriptionTab").value = "";
+            await load();
+          };
+        }
+
+        if (variantButton && !variantButton.dataset.bound) {
+          variantButton.dataset.bound = "1";
+          fillSelect($("variantProductTab"), state.products, "Chọn sản phẩm");
+          variantButton.onclick = async () => {
+            await api("create_variant", {
+              product_id: $("variantProductTab").value,
+              name: $("variantNameTab").value,
+              warranty_days: $("variantWarrantyTab").value,
+              mail_type: $("variantMailTab").value
+            });
+            $("variantNameTab").value = "";
+            $("variantWarrantyTab").value = "0";
+            $("variantMailTab").value = "";
+            await load();
+          };
+        }
       }
 
       function appendChat(role, message) {
