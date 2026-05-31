@@ -162,6 +162,11 @@
         display: grid;
         gap: 12px;
       }
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
       .chat-log {
         display: grid;
         gap: 10px;
@@ -191,6 +196,7 @@
       @media (max-width: 980px) {
         main { grid-template-columns: 1fr; }
         .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .form-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -407,7 +413,10 @@
           ];
         });
 
-        setTimeout(bindIntakeChat, 0);
+        setTimeout(() => {
+          bindIntakeChat();
+          bindManualIntake();
+        }, 0);
         return `
           <div class="helper">
             <section class="chat-shell">
@@ -427,6 +436,36 @@
               <div id="intakeChatActions" class="actions hidden">
                 <button id="intakeChatApprove">Nhập kho</button>
                 <button class="danger" id="intakeChatCancel">Hủy nháp</button>
+              </div>
+            </section>
+            <section class="chat-shell">
+              <h2>Nhập thủ công</h2>
+              <p class="muted">Dùng khi bạn đã biết chính xác hàng thuộc sản phẩm và biến thể nào. Có thể dán một hoặc nhiều tài khoản, mỗi dòng là một tài khoản.</p>
+              <div class="form-grid">
+                <div class="field">
+                  <label>Danh mục</label>
+                  <select id="manualCategory"></select>
+                </div>
+                <div class="field">
+                  <label>Sản phẩm</label>
+                  <select id="manualProduct"></select>
+                </div>
+                <div class="field">
+                  <label>Biến thể</label>
+                  <select id="manualVariant"></select>
+                </div>
+              </div>
+              <div class="field">
+                <label>Ghi chú</label>
+                <input id="manualNote" placeholder="Ví dụ: Lô ChatGPT BHF Gmail hôm nay" />
+              </div>
+              <div class="field">
+                <label>Danh sách tài khoản</label>
+                <textarea id="manualLines" placeholder="Email: user1@gmail.com | Password: pass1 | Code: ABC&#10;Email: user2@gmail.com | Password: pass2 | Code: XYZ"></textarea>
+              </div>
+              <div class="actions">
+                <button id="manualImport">Nhập thủ công</button>
+                <button class="secondary" id="manualClear">Xóa</button>
               </div>
             </section>
             <section>
@@ -501,6 +540,73 @@
             appendChat("bot", error.message);
           } finally {
             cancel.disabled = false;
+          }
+        };
+      }
+
+      function bindManualIntake() {
+        const category = $("manualCategory");
+        const product = $("manualProduct");
+        const variant = $("manualVariant");
+        const lines = $("manualLines");
+        const note = $("manualNote");
+        const submit = $("manualImport");
+        const clear = $("manualClear");
+        if (!category || !product || !variant || !submit || submit.dataset.bound) return;
+        submit.dataset.bound = "1";
+
+        const renderManualProducts = () => {
+          const categoryId = category.value;
+          const products = categoryId
+            ? state.products.filter((item) => String(item.category_id || "") === String(categoryId))
+            : state.products;
+          fillSelect(product, products, "Chọn sản phẩm");
+          renderManualVariants();
+        };
+
+        const renderManualVariants = () => {
+          const productId = product.value;
+          const variants = productId
+            ? state.variants.filter((item) => String(item.product_id || "") === String(productId))
+            : [];
+          fillSelect(variant, variants, "Không chọn biến thể");
+        };
+
+        fillSelect(category, state.categories, "Tất cả danh mục");
+        renderManualProducts();
+        category.onchange = renderManualProducts;
+        product.onchange = renderManualVariants;
+
+        clear.onclick = () => {
+          lines.value = "";
+          note.value = "";
+        };
+
+        submit.onclick = async () => {
+          if (!product.value) {
+            alert("Chọn sản phẩm trước đã.");
+            return;
+          }
+          if (!lines.value.trim()) {
+            alert("Dán ít nhất một tài khoản.");
+            return;
+          }
+          submit.disabled = true;
+          try {
+            const result = await api("import_accounts", {
+              product_id: product.value,
+              variant_id: variant.value,
+              lines: lines.value,
+              note: note.value
+            });
+            alert(`Đã nhập ${result.count || 0} tài khoản.`);
+            lines.value = "";
+            note.value = "";
+            await load();
+          } catch (error) {
+            alert(error.message);
+          } finally {
+            submit.disabled = false;
           }
         };
       }
