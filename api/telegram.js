@@ -1,5 +1,5 @@
 import { isAdmin } from "../lib/db.js";
-import { formatCatalog, t, vietQrUrl } from "../lib/i18n.js";
+import { formatCatalog, t, vietQrUrl, withUsdQuote } from "../lib/i18n.js";
 import {
   addProduct,
   approveSmartImportDraft,
@@ -298,14 +298,15 @@ async function handleCallback(query) {
   if (data.startsWith("buy:")) {
     const productId = Number(data.split(":")[1]);
     const { order, product } = await createOrder(user.id, productId);
+    const quotedOrder = await withUsdQuote(order);
     await telegram("sendMessage", {
       chat_id: chatId,
-      text: t(user, "orderCreated", order, product)
+      text: t(user, "orderCreated", quotedOrder, product)
     });
     await telegram("sendPhoto", {
       chat_id: chatId,
-      photo: vietQrUrl(order),
-      caption: `VietQR ${order.code} - ${formatMoney(order.amount)}`
+      photo: vietQrUrl(quotedOrder),
+      caption: `VietQR ${quotedOrder.code} - ${formatMoney(quotedOrder.amount)}`
     });
     return;
   }
