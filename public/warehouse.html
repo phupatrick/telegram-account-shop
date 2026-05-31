@@ -411,7 +411,7 @@
         `;
         const productForm = `
           <section class="stack">
-            <h2>Thêm sản phẩm / gói</h2>
+            <h2>Thêm loại sản phẩm / gói</h2>
             <div class="form-grid">
               <div class="field"><label>Danh mục</label><select id="productCategoryTab"></select></div>
               <div class="field"><label>Tên gói</label><input id="productNameTab" placeholder="ChatGPT Plus" /></div>
@@ -421,15 +421,15 @@
             <div class="actions"><button id="saveProductTab">Lưu sản phẩm</button></div>
           </section>
         `;
-        const categoryTable = table(["ID", "Tên", "Mô tả", "Sản phẩm", "Tài khoản còn", "Thao tác"], state.categories.map((c) => [
+        const categoryTable = table(["ID", "Tên", "Mô tả", "Loại sản phẩm", "Tài khoản còn", "Thao tác"], state.categories.map((c) => [
           c.id,
           c.name,
           c.description || "",
           c.product_count || 0,
           badge(c.available_count || 0, "ok"),
-          deleteButton("delete_category", c.id, c.name)
+          actionButtons("category", c.id, c.name)
         ]));
-        const productTable = table(["ID", "Danh mục", "Tên", "Giá", "Còn", "Đã bán", "Trạng thái", "Thao tác"], state.products.map((p) => [
+        const productTable = table(["ID", "Danh mục", "Loại sản phẩm / gói", "Giá", "Còn", "Đã bán", "Trạng thái", "Thao tác"], state.products.map((p) => [
           p.id,
           p.category_name || "-",
           p.name,
@@ -437,7 +437,7 @@
           badge(p.available_count, "ok"),
           p.sold_count,
           p.is_active ? badge("Đang bán", "ok") : badge("Tắt", "bad"),
-          deleteButton("delete_product", p.id, p.name)
+          actionButtons("product", p.id, p.name)
         ]));
         $("tab-products").innerHTML = `
           ${categoryForm}
@@ -447,7 +447,7 @@
             ${categoryTable}
           </section>
           <section>
-            <h2>Sản phẩm</h2>
+            <h2>Loại sản phẩm / gói</h2>
             ${productTable}
           </section>
         `;
@@ -455,7 +455,7 @@
           <section class="stack">
             <h2>Thêm biến thể</h2>
             <div class="form-grid">
-              <div class="field"><label>Sản phẩm</label><select id="variantProductTab"></select></div>
+              <div class="field"><label>Loại sản phẩm / gói</label><select id="variantProductTab"></select></div>
               <div class="field"><label>Tên biến thể</label><input id="variantNameTab" placeholder="BH 10 ngày - Gmail" /></div>
               <div class="field"><label>Số ngày bảo hành</label><input id="variantWarrantyTab" type="number" value="0" /></div>
             </div>
@@ -465,8 +465,8 @@
             </div>
           </section>
         `;
-        const variantTable = table(["ID", "Sản phẩm", "Biến thể", "BH", "Mail", "Còn", "Đã bán", "Thao tác"], state.variants.map((v) => [
-          v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count, deleteButton("delete_variant", v.id, v.name)
+        const variantTable = table(["ID", "Loại sản phẩm / gói", "Biến thể / bảo hành", "BH", "Mail", "Còn", "Đã bán", "Thao tác"], state.variants.map((v) => [
+          v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count, actionButtons("variant", v.id, v.name)
         ]));
         $("tab-variants").innerHTML = `${variantForm}<section><h2>Biến thể</h2>${variantTable}</section>`;
         $("tab-accounts").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "Preview", "Trạng thái", "Ghi chú", "Ngày nhập", "Thao tác"], state.accounts.map((a) => [
@@ -550,11 +550,11 @@
                   <select id="manualCategory"></select>
                 </div>
                 <div class="field">
-                  <label>Sản phẩm</label>
+                  <label>Loại sản phẩm / gói</label>
                   <select id="manualProduct"></select>
                 </div>
                 <div class="field">
-                  <label>Biến thể</label>
+                  <label>Biến thể / bảo hành</label>
                   <select id="manualVariant"></select>
                 </div>
               </div>
@@ -665,7 +665,7 @@
           const products = categoryId
             ? state.products.filter((item) => String(item.category_id || "") === String(categoryId))
             : state.products;
-          fillSelect(product, products, "Chọn sản phẩm");
+          fillSelect(product, products, "Chọn loại sản phẩm / gói");
           renderManualVariants();
         };
 
@@ -674,7 +674,7 @@
           const variants = productId
             ? state.variants.filter((item) => String(item.product_id || "") === String(productId))
             : [];
-          fillSelect(variant, variants, "Không chọn biến thể");
+          fillSelect(variant, variants, "Chọn biến thể / bảo hành");
         };
 
         fillSelect(category, state.categories, "Tất cả danh mục");
@@ -689,7 +689,11 @@
 
         submit.onclick = async () => {
           if (!product.value) {
-            notify("Chọn sản phẩm trước đã.", "bad");
+            notify("Chọn loại sản phẩm / gói trước đã.", "bad");
+            return;
+          }
+          if (!variant.value) {
+            notify("Chọn biến thể / bảo hành trước đã.", "bad");
             return;
           }
           if (!lines.value.trim()) {
@@ -743,6 +747,9 @@
           fillSelect($("productCategoryTab"), state.categories, "Không chọn danh mục");
           productButton.onclick = async () => {
             await runButton(productButton, async () => {
+              if (!$("productCategoryTab").value) {
+                throw new Error("Loại sản phẩm / gói phải thuộc một danh mục.");
+              }
               await api("create_product", {
                 category_id: $("productCategoryTab").value,
                 name: $("productNameTab").value,
@@ -760,9 +767,12 @@
 
         if (variantButton && !variantButton.dataset.bound) {
           variantButton.dataset.bound = "1";
-          fillSelect($("variantProductTab"), state.products, "Chọn sản phẩm");
+          fillSelect($("variantProductTab"), state.products, "Chọn loại sản phẩm / gói");
           variantButton.onclick = async () => {
             await runButton(variantButton, async () => {
+              if (!$("variantProductTab").value) {
+                throw new Error("Biến thể phải thuộc một loại sản phẩm / gói.");
+              }
               await api("create_variant", {
                 product_id: $("variantProductTab").value,
                 name: $("variantNameTab").value,
@@ -832,6 +842,12 @@
       function deleteButton(action, id, label) {
         return `<button class="danger" data-delete-action="${action}" data-delete-id="${id}" data-delete-label="${escapeHtml(label || id)}">Xóa</button>`;
       }
+      function editButton(type, id) {
+        return `<button class="secondary" data-edit-type="${type}" data-edit-id="${id}">Sửa</button>`;
+      }
+      function actionButtons(type, id, label) {
+        return `<div class="actions">${editButton(type, id)}${deleteButton(`delete_${type}`, id, label)}</div>`;
+      }
       function badge(value, type) { return `<span class="badge ${type || ""}">${value}</span>`; }
       function statusBadge(status) {
         const type = status === "available" || status === "delivered" ? "ok" : status === "pending" || status === "reserved" ? "warn" : "bad";
@@ -865,6 +881,12 @@
       $("logout").onclick = () => { localStorage.removeItem(tokenKey); location.reload(); };
       $("refresh").onclick = () => load().then(() => notify("Đã làm mới dữ liệu.")).catch((error) => notify(error.message, "bad"));
       document.addEventListener("click", async (event) => {
+        const edit = event.target.closest("[data-edit-type]");
+        if (edit) {
+          await handleEdit(edit.dataset.editType, edit.dataset.editId);
+          return;
+        }
+
         const button = event.target.closest("[data-delete-action]");
         if (!button) return;
         const action = button.dataset.deleteAction;
@@ -923,6 +945,66 @@
         if (action === "delete_account") return { account_id: id };
         if (action === "delete_draft") return { draft_id: id };
         return { id };
+      }
+
+      async function handleEdit(type, id) {
+        if (type === "category") {
+          const row = state.categories.find((item) => String(item.id) === String(id));
+          if (!row) return;
+          const name = prompt("Tên danh mục", row.name);
+          if (name === null) return;
+          const description = prompt("Mô tả danh mục", row.description || "");
+          if (description === null) return;
+          await editApi("update_category", { category_id: id, name, description });
+          return;
+        }
+
+        if (type === "product") {
+          const row = state.products.find((item) => String(item.id) === String(id));
+          if (!row) return;
+          const categoryId = prompt(`ID danh mục cho gói này\n${categoryPromptText()}`, row.category_id || "");
+          if (categoryId === null) return;
+          const name = prompt("Tên loại sản phẩm / gói", row.name);
+          if (name === null) return;
+          const price = prompt("Giá VND", row.price);
+          if (price === null) return;
+          const description = prompt("Mô tả hiện trên bot", row.description || "");
+          if (description === null) return;
+          await editApi("update_product", { product_id: id, category_id: categoryId, name, price, description });
+          return;
+        }
+
+        if (type === "variant") {
+          const row = state.variants.find((item) => String(item.id) === String(id));
+          if (!row) return;
+          const productId = prompt(`ID loại sản phẩm / gói cho biến thể này\n${productPromptText()}`, row.product_id || "");
+          if (productId === null) return;
+          const name = prompt("Tên biến thể / bảo hành", row.name);
+          if (name === null) return;
+          const warrantyDays = prompt("Số ngày bảo hành", row.warranty_days || 0);
+          if (warrantyDays === null) return;
+          const mailType = prompt("Loại mail", row.mail_type || "random");
+          if (mailType === null) return;
+          await editApi("update_variant", { variant_id: id, product_id: productId, name, warranty_days: warrantyDays, mail_type: mailType });
+        }
+      }
+
+      async function editApi(action, payload) {
+        try {
+          await api(action, payload);
+          notify("Đã lưu chỉnh sửa.");
+          await load();
+        } catch (error) {
+          notify(error.message, "bad");
+        }
+      }
+
+      function categoryPromptText() {
+        return state.categories.map((item) => `#${item.id} ${item.name}`).join("\n") || "Chưa có danh mục";
+      }
+
+      function productPromptText() {
+        return state.products.map((item) => `#${item.id} ${item.name}`).join("\n") || "Chưa có loại sản phẩm / gói";
       }
 
       async function setupGoogleLogin() {

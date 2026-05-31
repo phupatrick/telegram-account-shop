@@ -17,7 +17,10 @@ import {
   deleteVariant,
   importWarehouseAccounts,
   toggleProduct,
+  updateCategory,
   updateAccountStatus,
+  updateProduct,
+  updateVariant,
   warehouseOverview
 } from "../lib/warehouse.js";
 
@@ -64,6 +67,9 @@ export default async function handler(req, res) {
       create_product: createProduct,
       create_variant: createVariant,
       create_admin: createWarehouseAdmin,
+      update_category: updateCategory,
+      update_product: updateProduct,
+      update_variant: updateVariant,
       import_accounts: importWarehouseAccounts,
       update_account_status: updateAccountStatus,
       toggle_product: toggleProduct,
