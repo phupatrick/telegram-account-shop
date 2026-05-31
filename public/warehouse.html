@@ -365,7 +365,15 @@
       }
 
       function renderTables() {
-        $("tab-products").innerHTML = table(["ID", "Danh mục", "Tên", "Giá", "Còn", "Đã bán", "Trạng thái", "Thao tác"], state.products.map((p) => [
+        const categoryTable = table(["ID", "Tên", "Mô tả", "Sản phẩm", "Tài khoản còn", "Thao tác"], state.categories.map((c) => [
+          c.id,
+          c.name,
+          c.description || "",
+          c.product_count || 0,
+          badge(c.available_count || 0, "ok"),
+          deleteButton("delete_category", c.id, c.name)
+        ]));
+        const productTable = table(["ID", "Danh mục", "Tên", "Giá", "Còn", "Đã bán", "Trạng thái", "Thao tác"], state.products.map((p) => [
           p.id,
           p.category_name || "-",
           p.name,
@@ -375,6 +383,16 @@
           p.is_active ? badge("Đang bán", "ok") : badge("Tắt", "bad"),
           deleteButton("delete_product", p.id, p.name)
         ]));
+        $("tab-products").innerHTML = `
+          <section>
+            <h2>Danh mục</h2>
+            ${categoryTable}
+          </section>
+          <section>
+            <h2>Sản phẩm</h2>
+            ${productTable}
+          </section>
+        `;
         $("tab-variants").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "BH", "Mail", "Còn", "Đã bán", "Thao tác"], state.variants.map((v) => [
           v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count, deleteButton("delete_variant", v.id, v.name)
         ]));
@@ -712,6 +730,7 @@
 
       function deletePayload(action, id) {
         if (action === "delete_product") return { product_id: id };
+        if (action === "delete_category") return { category_id: id };
         if (action === "delete_variant") return { variant_id: id };
         if (action === "delete_account") return { account_id: id };
         if (action === "delete_draft") return { draft_id: id };
