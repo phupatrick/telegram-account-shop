@@ -7,18 +7,27 @@ if (!token) {
   throw new Error("Missing TELEGRAM_BOT_TOKEN");
 }
 
-const commands = [
-  { command: "start", description: "Mở shop / Open shop" },
-  { command: "language", description: "Đổi ngôn ngữ / Change language" },
-  { command: "ticket", description: "Tạo ticket hỗ trợ / Create support ticket" },
-  { command: "admin", description: "Bảng admin / Admin panel" },
-  { command: "addproduct", description: "Admin: thêm sản phẩm" },
-  { command: "import", description: "Admin: nạp kho thủ công" },
-  { command: "importsheet", description: "Admin: nhập kho từ Google Sheet" },
-  { command: "nhapkho", description: "Admin: trợ lý phân loại và nhập kho" },
-  { command: "intake", description: "Admin: smart inventory intake" },
-  { command: "confirm", description: "Admin: xác nhận đơn đã thanh toán" }
+const customerCommands = [
+  { command: "start", description: "Mo shop / Open shop" },
+  { command: "language", description: "Doi ngon ngu / Change language" },
+  { command: "ticket", description: "Tao ticket ho tro / Create support ticket" }
 ];
+
+const adminCommands = [
+  ...customerCommands,
+  { command: "admin", description: "Bang admin / Admin panel" },
+  { command: "addproduct", description: "Admin: them san pham" },
+  { command: "import", description: "Admin: nap kho thu cong" },
+  { command: "importsheet", description: "Admin: nhap kho tu Google Sheet" },
+  { command: "nhapkho", description: "Admin: tro ly phan loai va nhap kho" },
+  { command: "intake", description: "Admin: smart inventory intake" },
+  { command: "confirm", description: "Admin: xac nhan don da thanh toan" }
+];
+
+const adminTelegramIds = (process.env.ADMIN_TELEGRAM_IDS || "")
+  .split(",")
+  .map((id) => id.trim())
+  .filter(Boolean);
 
 async function telegram(method, payload) {
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
@@ -35,18 +44,31 @@ async function telegram(method, payload) {
 }
 
 await telegram("setMyCommands", {
-  commands,
+  commands: customerCommands,
   scope: { type: "all_private_chats" },
   language_code: "vi"
 });
 
 await telegram("setMyCommands", {
-  commands,
+  commands: customerCommands,
   scope: { type: "all_private_chats" }
 });
+
+for (const chatId of adminTelegramIds) {
+  await telegram("setMyCommands", {
+    commands: adminCommands,
+    scope: { type: "chat", chat_id: chatId },
+    language_code: "vi"
+  });
+
+  await telegram("setMyCommands", {
+    commands: adminCommands,
+    scope: { type: "chat", chat_id: chatId }
+  });
+}
 
 await telegram("setChatMenuButton", {
   menu_button: { type: "commands" }
 });
 
-console.log("Telegram command menu configured.");
+console.log(`Telegram command menu configured. Admin chats: ${adminTelegramIds.length}.`);
