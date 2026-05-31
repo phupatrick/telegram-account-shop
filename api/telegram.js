@@ -1,5 +1,5 @@
 import { isAdmin } from "../lib/db.js";
-import { formatCatalog, t } from "../lib/i18n.js";
+import { formatCatalog, t, vietQrUrl } from "../lib/i18n.js";
 import {
   addProduct,
   approveSmartImportDraft,
@@ -301,6 +301,11 @@ async function handleCallback(query) {
     await telegram("sendMessage", {
       chat_id: chatId,
       text: t(user, "orderCreated", order, product)
+    });
+    await telegram("sendPhoto", {
+      chat_id: chatId,
+      photo: vietQrUrl(order),
+      caption: `VietQR ${order.code} - ${formatMoney(order.amount)}`
     });
     return;
   }
