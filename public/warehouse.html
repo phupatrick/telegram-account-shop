@@ -319,7 +319,7 @@
         <div>
           <div class="grid">
             <section class="metric"><span>Danh mục</span><strong id="mCategories">0</strong></section>
-            <section class="metric"><span>Sản phẩm</span><strong id="mProducts">0</strong></section>
+            <section class="metric"><span>Loại sản phẩm</span><strong id="mProducts">0</strong></section>
             <section class="metric"><span>Tài khoản còn</span><strong id="mAvailable">0</strong></section>
             <section class="metric"><span>Đơn gần đây</span><strong id="mOrders">0</strong></section>
             <section class="metric"><span>Quản trị viên</span><strong id="mAdmins">0</strong></section>
@@ -328,7 +328,8 @@
           <div class="panel">
             <div class="tabs">
               <button class="active" data-tab="intake">Nhập kho</button>
-              <button data-tab="products">Sản phẩm</button>
+              <button data-tab="categories">Danh mục</button>
+              <button data-tab="products">Loại sản phẩm</button>
               <button data-tab="variants">Biến thể</button>
               <button data-tab="accounts">Kho tài khoản</button>
               <button data-tab="orders">Đơn hàng</button>
@@ -336,6 +337,7 @@
               <button data-tab="admins">Quản trị</button>
             </div>
             <div id="tab-intake" class="tab active"></div>
+            <div id="tab-categories" class="tab"></div>
             <div id="tab-products" class="tab"></div>
             <div id="tab-variants" class="tab"></div>
             <div id="tab-accounts" class="tab"></div>
@@ -439,13 +441,15 @@
           p.is_active ? badge("Đang bán", "ok") : badge("Tắt", "bad"),
           actionButtons("product", p.id, p.name)
         ]));
-        $("tab-products").innerHTML = `
+        $("tab-categories").innerHTML = `
           ${categoryForm}
-          ${productForm}
           <section>
             <h2>Danh mục</h2>
             ${categoryTable}
           </section>
+        `;
+        $("tab-products").innerHTML = `
+          ${productForm}
           <section>
             <h2>Loại sản phẩm / gói</h2>
             ${productTable}
