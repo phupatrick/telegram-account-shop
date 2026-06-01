@@ -469,8 +469,8 @@
           v.id, v.product_name, v.name, `${v.warranty_days} ngày`, v.mail_type, badge(v.available_count, "ok"), v.sold_count, actionButtons("variant", v.id, v.name)
         ]));
         $("tab-variants").innerHTML = `${variantForm}<section><h2>Biến thể</h2>${variantTable}</section>`;
-        $("tab-accounts").innerHTML = table(["ID", "Sản phẩm", "Biến thể", "Preview", "Trạng thái", "Ghi chú", "Ngày nhập", "Thao tác"], state.accounts.map((a) => [
-          a.id, a.product_name, a.variant_name || "-", a.preview, statusBadge(a.status), a.note || "", date(a.created_at), deleteButton("delete_account", a.id, a.preview)
+        $("tab-accounts").innerHTML = table(["ID", "Loại sản phẩm / gói", "Biến thể / bảo hành", "Preview", "Trạng thái", "Ghi chú", "Ngày nhập", "Thao tác"], state.accounts.map((a) => [
+          a.id, a.product_name, a.variant_name || "-", a.preview, statusBadge(a.status), a.note || "", date(a.created_at), actionButtons("account", a.id, a.preview)
         ]));
         $("tab-intake").innerHTML = renderIntakeHelper();
         $("tab-orders").innerHTML = table(["Mã", "User", "Sản phẩm", "Số tiền", "Trạng thái", "Ngày tạo"], state.orders.map((o) => [
@@ -986,6 +986,24 @@
           const mailType = prompt("Loại mail", row.mail_type || "random");
           if (mailType === null) return;
           await editApi("update_variant", { variant_id: id, product_id: productId, name, warranty_days: warrantyDays, mail_type: mailType });
+          return;
+        }
+
+        if (type === "account") {
+          const row = state.accounts.find((item) => String(item.id) === String(id));
+          if (!row) return;
+          const productId = prompt(`ID loại sản phẩm / gói cho tài khoản này\n${productPromptText()}`, row.product_id || "");
+          if (productId === null) return;
+          const validVariants = state.variants.filter((item) => String(item.product_id || "") === String(productId));
+          const variantId = prompt(`ID biến thể / bảo hành\n${variantPromptText(validVariants)}`, row.variant_id || "");
+          if (variantId === null) return;
+          const data = prompt("Nội dung tài khoản", row.data || row.preview || "");
+          if (data === null) return;
+          const status = prompt("Trạng thái: available / reserved / sold / disabled", row.status || "available");
+          if (status === null) return;
+          const note = prompt("Ghi chú", row.note || "");
+          if (note === null) return;
+          await editApi("update_account", { account_id: id, product_id: productId, variant_id: variantId, data, status, note });
         }
       }
 
@@ -1005,6 +1023,10 @@
 
       function productPromptText() {
         return state.products.map((item) => `#${item.id} ${item.name}`).join("\n") || "Chưa có loại sản phẩm / gói";
+      }
+
+      function variantPromptText(rows = state.variants) {
+        return rows.map((item) => `#${item.id} ${item.name}`).join("\n") || "Chưa có biến thể / bảo hành cho gói này";
       }
 
       async function setupGoogleLogin() {
