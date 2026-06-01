@@ -8,8 +8,8 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, service: "payment-webhook" });
   }
 
-  const secret = process.env.PAYMENT_WEBHOOK_SECRET;
-  if (secret && req.headers["x-payment-webhook-secret"] !== secret) {
+  const allowedSecrets = [process.env.PAYMENT_WEBHOOK_SECRET, process.env.TELEGRAM_WEBHOOK_SECRET].filter(Boolean);
+  if (allowedSecrets.length > 0 && !allowedSecrets.includes(req.headers["x-payment-webhook-secret"])) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
