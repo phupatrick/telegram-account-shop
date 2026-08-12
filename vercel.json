@@ -9,6 +9,6 @@
     }
   },
   "crons": [
-    { "path": "/api/catalog-sync", "schedule": "0 */6 * * *" }
+    { "path": "/api/catalog-sync", "schedule": "0 2 * * *" }
   ]
 }
