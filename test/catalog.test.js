@@ -57,6 +57,24 @@ test("formats reseller catalog in English and discounted USD", () => {
   else process.env.SHOP_MODE = previous;
 });
 
+test("shows reseller Catalog items even without retail account stock", () => {
+  const previous = process.env.SHOP_MODE;
+  process.env.SHOP_MODE = "reseller";
+  const output = formatCatalog({ language: "en" }, [{
+    name: "Adobe 1 nÄƒm",
+    name_en: "Adobe 1 year",
+    description_en: "Catalog-synced product.",
+    price: 260000,
+    sale_price: salePriceVnd(260000, "reseller"),
+    stock: 0,
+    warranty_text: ""
+  }]);
+  assert.match(output, /Stock: Catalog item/);
+  assert.doesNotMatch(output, /Out of stock/);
+  if (previous === undefined) delete process.env.SHOP_MODE;
+  else process.env.SHOP_MODE = previous;
+});
+
 test("rejects ambiguous Catalog prices", () => {
   assert.equal(parseCatalogPrice("100.000 - 200.000"), 0);
   assert.equal(parseCatalogPrice("Liên hệ"), 0);

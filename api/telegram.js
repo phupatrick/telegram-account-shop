@@ -25,6 +25,7 @@ import {
   stopSmartImportSession
 } from "../lib/services.js";
 import { adminMenu, languageMenu, mainMenu, telegram, warehouseUrl } from "../lib/telegram.js";
+import { shopConfig } from "../lib/shop-config.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -294,6 +295,10 @@ async function handleCallback(query) {
 
   if (data === "products") {
     const products = await listProducts();
+    if (shopConfig().mode === "reseller") {
+      await sendCatalog(chatId, user, products);
+      return;
+    }
     const availableProducts = products.filter((product) => Number(product.stock || 0) > 0);
     if (availableProducts.length === 0) {
       await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProductsInStock") });
@@ -409,11 +414,24 @@ async function handleCallback(query) {
 
 async function sendHome(chatId, user) {
   const products = await listProducts();
-  await telegram("sendMessage", {
-    chat_id: chatId,
-    text: formatCatalog(user, products),
-    reply_markup: mainMenu(user)
-  });
+  await sendCatalog(chatId, user, products, mainMenu(user));
+}
+
+async function sendCatalog(chatId, user, products, replyMarkup) {
+  const batchSize = shopConfig().mode === "reseller" ? 3 : products.length || 1;
+  const batches = [];
+  for (let index = 0; index < products.length; index += batchSize) {
+    batches.push(products.slice(index, index + batchSize));
+  }
+  if (batches.length === 0) batches.push([]);
+
+  for (const [index, batch] of batches.entries()) {
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: formatCatalog(user, batch),
+      ...(index === 0 && replyMarkup ? { reply_markup: replyMarkup } : {})
+    });
+  }
 }
 
 async function handleAdminCallback(chatId, data, user) {
