@@ -20,6 +20,19 @@ create table if not exists products (
   created_at timestamptz not null default now()
 );
 
+alter table products
+  add column if not exists source text,
+  add column if not exists source_id text,
+  add column if not exists name_en text not null default '',
+  add column if not exists description_en text not null default '',
+  add column if not exists image_url text not null default '',
+  add column if not exists base_price_vnd numeric(14, 2),
+  add column if not exists warranty_text text not null default '',
+  add column if not exists source_payload jsonb not null default '{}'::jsonb,
+  add column if not exists synced_at timestamptz;
+
+create unique index if not exists products_source_idx on products (source, source_id);
+
 create table if not exists categories (
   id bigserial primary key,
   name text not null,
@@ -63,6 +76,13 @@ create table if not exists orders (
   paid_at timestamptz,
   delivered_at timestamptz
 );
+
+alter table orders
+  add column if not exists product_name text,
+  add column if not exists product_description text,
+  add column if not exists warranty_text text,
+  add column if not exists payment_method text,
+  add column if not exists payment_reported_at timestamptz;
 
 create index if not exists orders_user_idx on orders (user_id, created_at desc);
 create index if not exists orders_status_idx on orders (status, created_at);
@@ -123,6 +143,8 @@ create table if not exists payments (
   transaction_ref text,
   created_at timestamptz not null default now()
 );
+
+create unique index if not exists payments_order_method_idx on payments (order_id, method);
 
 create table if not exists tickets (
   id bigserial primary key,

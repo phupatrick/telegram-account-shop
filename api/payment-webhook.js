@@ -1,5 +1,6 @@
 import { t } from "../lib/i18n.js";
 import { db } from "../lib/db.js";
+import { extractOrderCode, isExactPayment } from "../lib/payment.js";
 import { confirmAndDeliver, logEvent } from "../lib/services.js";
 import { telegram } from "../lib/telegram.js";
 
@@ -9,7 +10,7 @@ export default async function handler(req, res) {
   }
 
   const allowedSecrets = [process.env.PAYMENT_WEBHOOK_SECRET, process.env.TELEGRAM_WEBHOOK_SECRET].filter(Boolean);
-  if (allowedSecrets.length > 0 && !allowedSecrets.includes(req.headers["x-payment-webhook-secret"])) {
+  if (allowedSecrets.length === 0 || !allowedSecrets.includes(req.headers["x-payment-webhook-secret"])) {
     return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
@@ -38,15 +39,15 @@ async function processPaymentTransaction(transaction) {
 
   const paidAmount = Number(transaction.amount || 0);
   const expectedAmount = Number(pending.amount || 0);
-  if (!Number.isFinite(paidAmount) || paidAmount < expectedAmount) {
+  if (!isExactPayment(paidAmount, expectedAmount)) {
     await safeLog("payment.webhook.ignored", {
-      reason: "amount_too_low",
+      reason: "amount_mismatch",
       code,
       paidAmount,
       expectedAmount,
       transaction
     });
-    return { status: "ignored", reason: "amount_too_low", code, paidAmount, expectedAmount };
+    return { status: "ignored", reason: "amount_mismatch", code, paidAmount, expectedAmount };
   }
 
   const { order, account } = await confirmAndDeliver(code);
@@ -71,7 +72,7 @@ async function findPendingOrder(code) {
     from orders o
     join users u on u.id = o.user_id
     join products p on p.id = o.product_id
-    where o.code = ${code} and o.status = 'pending'
+    where o.code = ${code} and o.status in ('pending', 'payment_reported')
     limit 1
   `;
   return rows[0];
@@ -92,11 +93,6 @@ function normalizeTransaction(body) {
     amount,
     content
   };
-}
-
-function extractOrderCode(content) {
-  const match = String(content || "").toUpperCase().match(/\bDH[A-Z0-9]{6,20}\b/);
-  return match?.[0] || "";
 }
 
 function firstText(...values) {

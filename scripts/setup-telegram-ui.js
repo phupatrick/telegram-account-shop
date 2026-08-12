@@ -9,6 +9,7 @@ if (!token) {
 
 const customerCommands = [
   { command: "start", description: "Mo shop / Open shop" },
+  { command: "heybot", description: "Open reseller catalog" },
   { command: "language", description: "Doi ngon ngu / Change language" },
   { command: "ticket", description: "Tao ticket ho tro / Create support ticket" }
 ];
@@ -21,7 +22,8 @@ const adminCommands = [
   { command: "importsheet", description: "Admin: nhap kho tu Google Sheet" },
   { command: "nhapkho", description: "Admin: tro ly phan loai va nhap kho" },
   { command: "intake", description: "Admin: smart inventory intake" },
-  { command: "confirm", description: "Admin: xac nhan don da thanh toan" }
+  { command: "confirm", description: "Admin: xac nhan don da thanh toan" },
+  { command: "synccatalog", description: "Admin: dong bo Zalo Catalog" }
 ];
 
 const adminTelegramIds = (process.env.ADMIN_TELEGRAM_IDS || "")

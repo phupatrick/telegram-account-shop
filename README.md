@@ -1,5 +1,13 @@
 # Telegram Account Shop on Vercel
 
+Bot dung chung Zalo Catalog cho hai che do trien khai:
+
+- `SHOP_MODE=retail`: giu gia Catalog; Tieng Viet thanh toan ACB/VietQR, English thanh toan USD/Binance.
+- `SHOP_MODE=reseller`: tu dong giam 20% tu gia Catalog va hien thi English/USD.
+- Dong bo bang `/synccatalog` hoac Vercel Cron moi 6 gio.
+- Trien khai hai Vercel project rieng voi Telegram token rieng cho shop bot va seller manager bot; co the dung chung database de dung chung kho.
+- Nut da thanh toan chi ghi nhan yeu cau kiem tra. Chi giao hang sau `/confirm` hoac payment webhook xac minh dung ma don va dung chinh xac so tien.
+
 MVP bot Telegram bán tài khoản số, chạy bằng webhook serverless trên Vercel.
 
 ## Tính năng

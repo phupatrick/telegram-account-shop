@@ -3,6 +3,12 @@
   "functions": {
     "api/telegram.js": {
       "maxDuration": 10
+    },
+    "api/catalog-sync.js": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/catalog-sync", "schedule": "0 */6 * * *" }
+  ]
 }

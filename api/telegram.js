@@ -1,5 +1,5 @@
 import { isAdmin } from "../lib/db.js";
-import { formatBankPayment, formatBinancePayment, formatCatalog, t, vietQrUrl, withUsdQuote } from "../lib/i18n.js";
+import { formatBankPayment, formatBinancePayment, formatCatalog, formatLocalizedMoney, t, vietQrUrl, withUsdQuote } from "../lib/i18n.js";
 import {
   addProduct,
   approveSmartImportDraft,
@@ -17,9 +17,11 @@ import {
   listPendingOrders,
   listProducts,
   listUserOrders,
+  reportPayment,
   setUserLanguage,
   startSmartImportSession,
   stockSummary,
+  syncCatalog,
   stopSmartImportSession
 } from "../lib/services.js";
 import { adminMenu, languageMenu, mainMenu, telegram, warehouseUrl } from "../lib/telegram.js";
@@ -58,7 +60,12 @@ async function handleMessage(message) {
   const text = (message.text || "").trim();
   const user = await ensureUser(message.from);
 
-  if (text === "/start" || text === "/language" || text === "/lang") {
+  if (text === "/start" || text === "/heybot" || text === "/language" || text === "/lang") {
+    if (text === "/heybot") {
+      await sendHome(chatId, user);
+      return;
+    }
+
     if (!user.language || text === "/language" || text === "/lang") {
       await telegram("sendMessage", {
         chat_id: chatId,
@@ -195,9 +202,17 @@ async function handleMessage(message) {
       const { order, account } = await confirmAndDeliver(code);
       await telegram("sendMessage", {
         chat_id: order.telegram_id,
-        text: t(user, "orderPaid", order, account)
+        text: t(order.language || "vi", "orderPaid", order, account)
       });
       await telegram("sendMessage", { chat_id: chatId, text: t(user, "delivered", order.code) });
+    });
+    return;
+  }
+
+  if (text === "/synccatalog" || text === "/sync") {
+    await adminOnly(message, user, async () => {
+      const result = await syncCatalog();
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "syncDone", result.synced, result.total) });
     });
     return;
   }
@@ -291,7 +306,7 @@ async function handleCallback(query) {
       reply_markup: {
         inline_keyboard: availableProducts.map((product) => [
           {
-            text: `${product.name} - ${formatMoney(product.price)} - ${t(user, "inStock")} ${product.stock}`,
+            text: `${user.language === "en" ? product.name_en || product.name : product.name} - ${formatLocalizedMoney(product.sale_price, user.language)} - ${t(user, "inStock")} ${product.stock}`,
             callback_data: `buy:${product.id}`
           }
         ])
@@ -305,14 +320,17 @@ async function handleCallback(query) {
     try {
       const { order, product } = await createOrder(user.id, productId);
       const quotedOrder = await withUsdQuote(order);
-      await telegram("sendMessage", {
+      const method = product.image_url ? "sendPhoto" : "sendMessage";
+      const paymentButton = user.language === "en"
+        ? { text: "Binance Pay / USDT", callback_data: `pay_binance:${order.code}` }
+        : { text: "ACB / VietQR", callback_data: `pay_bank:${order.code}` };
+      await telegram(method, {
         chat_id: chatId,
-        text: t(user, "orderCreated", quotedOrder, product),
+        ...(product.image_url
+          ? { photo: product.image_url, caption: t(user, "orderCreated", quotedOrder, product) }
+          : { text: t(user, "orderCreated", quotedOrder, product) }),
         reply_markup: {
-          inline_keyboard: [
-            [{ text: "ACB / VietQR", callback_data: `pay_bank:${order.code}` }],
-            [{ text: "Binance Pay / USDT", callback_data: `pay_binance:${order.code}` }]
-          ]
+          inline_keyboard: [[paymentButton]]
         }
       });
     } catch (error) {
@@ -330,24 +348,43 @@ async function handleCallback(query) {
     }
     const quotedOrder = await withUsdQuote(order);
     if (data.startsWith("pay_bank:")) {
+      if (user.language === "en") return;
       await telegram("sendPhoto", {
         chat_id: chatId,
         photo: vietQrUrl(quotedOrder),
-        caption: formatBankPayment(user, quotedOrder)
+        caption: formatBankPayment(user, quotedOrder),
+        reply_markup: { inline_keyboard: [[{ text: "Tôi đã thanh toán", callback_data: `paid:bank:${order.code}` }]] }
       });
     } else {
+      if (user.language !== "en") return;
       await telegram("sendMessage", {
         chat_id: chatId,
-        text: formatBinancePayment(user, quotedOrder)
+        text: formatBinancePayment(user, quotedOrder),
+        reply_markup: { inline_keyboard: [[{ text: "I have paid", callback_data: `paid:binance:${order.code}` }]] }
       });
     }
+    return;
+  }
+
+  if (data.startsWith("paid:")) {
+    const [, method, orderCode] = data.split(":");
+    const order = await reportPayment(orderCode, user.id, method);
+    if (!order) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noOrders") });
+      return;
+    }
+    await telegram("sendMessage", {
+      chat_id: chatId,
+      text: t(user, "paymentReported", order),
+      reply_markup: { inline_keyboard: [[{ text: t(user, "contactSupport"), url: "https://t.me/Patrick_Tech_Fullapp" }]] }
+    });
     return;
   }
 
   if (data === "my_orders") {
     const orders = await listUserOrders(user.id);
     const text = orders.length
-      ? orders.map((order) => `${order.code} | ${order.product_name} | ${formatMoney(order.amount)} | ${order.status}`).join("\n")
+      ? orders.map((order) => formatOrderHistory(user, order)).join("\n\n")
       : t(user, "noOrders");
     await telegram("sendMessage", { chat_id: chatId, text });
     return;
@@ -380,6 +417,12 @@ async function sendHome(chatId, user) {
 }
 
 async function handleAdminCallback(chatId, data, user) {
+  if (data === "admin_sync_catalog") {
+    const result = await syncCatalog();
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "syncDone", result.synced, result.total) });
+    return;
+  }
+
   if (data === "admin_products") {
     const products = await listProducts();
     const text = products.length
@@ -451,4 +494,24 @@ async function sendImportDraft(chatId, draft) {
 
 function formatMoney(value) {
   return Number(value).toLocaleString("vi-VN") + " VND";
+}
+
+function formatOrderHistory(user, order) {
+  const en = user.language === "en";
+  const created = new Date(order.created_at).toLocaleString(en ? "en-US" : "vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
+  const statusMap = en
+    ? { pending: "Pending", payment_reported: "Payment reported", delivered: "Delivered", failed: "Failed" }
+    : { pending: "Chờ thanh toán", payment_reported: "Đã báo thanh toán", delivered: "Đã giao", failed: "Thất bại" };
+  const name = en ? order.product_name_en || order.product_name : order.product_name;
+  const price = formatLocalizedMoney(order.amount, user.language);
+  const lines = [
+    `${en ? "Order" : "Đơn"}: ${order.code}`,
+    `${en ? "Product" : "Sản phẩm"}: ${name}`,
+    `${en ? "Amount" : "Số tiền"}: ${price}`,
+    `${en ? "Created" : "Ngày tạo"}: ${created}`,
+    `${en ? "Status" : "Trạng thái"}: ${statusMap[order.status] || order.status}`
+  ];
+  if (order.warranty_text) lines.push(`${en ? "Warranty" : "Bảo hành"}: ${order.warranty_text}`);
+  if (order.payment_method) lines.push(`${en ? "Payment" : "Thanh toán"}: ${order.payment_method}`);
+  return lines.join("\n");
 }
