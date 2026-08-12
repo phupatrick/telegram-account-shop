@@ -14,21 +14,21 @@ if (!appUrl) {
   throw new Error("Missing APP_URL or VERCEL_PROJECT_PRODUCTION_URL");
 }
 
-if (!secret) {
-  throw new Error("Missing TELEGRAM_WEBHOOK_SECRET");
-}
-
 const normalizedUrl = appUrl.startsWith("http") ? appUrl : `https://${appUrl}`;
 const webhookUrl = `${normalizedUrl.replace(/\/$/, "")}/api/telegram`;
+const body = {
+  url: webhookUrl,
+  allowed_updates: ["message", "callback_query"]
+};
+
+if (secret) {
+  body.secret_token = secret;
+}
 
 const response = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
   method: "POST",
   headers: { "content-type": "application/json" },
-  body: JSON.stringify({
-    url: webhookUrl,
-    secret_token: secret,
-    allowed_updates: ["message", "callback_query"]
-  })
+  body: JSON.stringify(body)
 });
 
 const data = await response.json();
