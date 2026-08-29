@@ -299,7 +299,7 @@ async function handleCallback(query) {
       await sendCatalog(chatId, user, products);
       return;
     }
-    const availableProducts = products.filter((product) => Number(product.stock || 0) > 0);
+    const availableProducts = products.filter((product) => Number(product.stock || 0) > 0 || product.source === "zalo");
     if (availableProducts.length === 0) {
       await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProductsInStock") });
       return;
@@ -311,7 +311,7 @@ async function handleCallback(query) {
       reply_markup: {
         inline_keyboard: availableProducts.map((product) => [
           {
-            text: `${user.language === "en" ? product.name_en || product.name : product.name} - ${formatLocalizedMoney(product.sale_price, user.language)} - ${t(user, "inStock")} ${product.stock}`,
+            text: `${user.language === "en" ? product.name_en || product.name : product.name} - ${formatLocalizedMoney(product.sale_price, user.language)} - ${product.source === "zalo" && Number(product.stock || 0) <= 0 ? t(user, "catalogItem") : `${t(user, "inStock")} ${product.stock}`}`,
             callback_data: `buy:${product.id}`
           }
         ])

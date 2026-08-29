@@ -75,6 +75,25 @@ test("shows reseller Catalog items even without retail account stock", () => {
   else process.env.SHOP_MODE = previous;
 });
 
+test("shows retail Catalog items without imported account stock", () => {
+  const previous = process.env.SHOP_MODE;
+  delete process.env.SHOP_MODE;
+  const output = formatCatalog({ language: "en" }, [{
+    name: "Adobe 1 năm",
+    name_en: "Adobe 1 year",
+    description_en: "Catalog-synced product.",
+    price: 260000,
+    sale_price: 260000,
+    stock: 0,
+    source: "zalo",
+    warranty_text: ""
+  }]);
+  assert.match(output, /Stock: Catalog item/);
+  assert.doesNotMatch(output, /Out of stock/);
+  if (previous === undefined) delete process.env.SHOP_MODE;
+  else process.env.SHOP_MODE = previous;
+});
+
 test("rejects ambiguous Catalog prices", () => {
   assert.equal(parseCatalogPrice("65.000 ₫"), 65000);
   assert.equal(parseCatalogPrice("100.000 - 200.000"), 0);
