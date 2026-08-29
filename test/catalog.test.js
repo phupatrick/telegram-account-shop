@@ -76,6 +76,7 @@ test("shows reseller Catalog items even without retail account stock", () => {
 });
 
 test("rejects ambiguous Catalog prices", () => {
+  assert.equal(parseCatalogPrice("65.000 ₫"), 65000);
   assert.equal(parseCatalogPrice("100.000 - 200.000"), 0);
   assert.equal(parseCatalogPrice("Liên hệ"), 0);
 });
