@@ -4,7 +4,10 @@ Bot dung chung Zalo Catalog cho hai che do trien khai:
 
 - `SHOP_MODE=retail`: giu gia Catalog; Tieng Viet thanh toan ACB/VietQR, English thanh toan USD/Binance.
 - `SHOP_MODE=reseller`: tu dong giam 20% tu gia Catalog va hien thi English/USD.
+- Dong bo catalog tu `https://patricktechmedia.store/api/products` (77 san pham hien tai), Zalo API la nguon fallback.
 - Dong bo bang `/synccatalog` bat ky luc nao hoac Vercel Cron hang ngay (gioi han Hobby).
+- Shop bot chi xu ly chat ca nhan; cac tin nhan va nut bam trong group/supergroup bi bo qua. Chuc nang group duoc de cho bot rieng.
+- Topics/Forum do Telegram quan ly va khong duoc bot shop xu ly.
 - Trien khai hai Vercel project rieng voi Telegram token rieng cho shop bot va seller manager bot; co the dung chung database de dung chung kho.
 - Nut da thanh toan chi ghi nhan yeu cau kiem tra. Chi giao hang sau `/confirm` hoac payment webhook xac minh dung ma don va dung chinh xac so tien.
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mapCatalogProduct, parseCatalogPrice, translateName } from "../lib/catalog.js";
+import { fetchCatalogProducts, mapCatalogProduct, parseCatalogPrice, translateName } from "../lib/catalog.js";
 import { formatCatalog } from "../lib/i18n.js";
 import { extractOrderCode, isExactPayment } from "../lib/payment.js";
 import { defaultShopLanguage, RESELLER_DISCOUNT, salePriceVnd, usdFromVnd, VND_PER_USD } from "../lib/shop-config.js";
@@ -29,6 +29,31 @@ test("maps Zalo Catalog data", () => {
   assert.equal(product.price, 249000);
   assert.match(product.nameEn, /account/i);
   assert.equal(product.imageUrl, "https://example.test/a.jpg");
+});
+
+test("loads store catalog products using the store API shape", async () => {
+  const previousUrl = process.env.STORE_CATALOG_URL;
+  const previousFetch = globalThis.fetch;
+  process.env.STORE_CATALOG_URL = "https://store.test/api/products";
+  globalThis.fetch = async () => new Response(JSON.stringify({ products: [{
+    id: "premium:sku-1",
+    title: "Gói AI 1 tháng",
+    description: "Bảo hành 7 ngày",
+    price: 130000,
+    image: "https://store.test/product.jpg",
+    catalogLabelVi: "AI Premium"
+  }] }), { status: 200, headers: { "content-type": "application/json" } });
+  try {
+    const products = await fetchCatalogProducts();
+    assert.equal(products.length, 1);
+    assert.equal(products[0].sourceId, "premium:sku-1");
+    assert.equal(products[0].price, 130000);
+    assert.equal(products[0].imageUrl, "https://store.test/product.jpg");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousUrl === undefined) delete process.env.STORE_CATALOG_URL;
+    else process.env.STORE_CATALOG_URL = previousUrl;
+  }
 });
 
 test("translates reseller catalog names without Vietnamese fragments", () => {

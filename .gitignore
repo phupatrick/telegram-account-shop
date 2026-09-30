@@ -9,3 +9,5 @@ node_modules_artifact/
 outputs/
 scratch/
 .vercel
+.env.runtime
+.env.*.local

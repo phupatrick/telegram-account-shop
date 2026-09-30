@@ -47,6 +47,12 @@ export default async function handler(req, res) {
 }
 
 async function handleUpdate(update) {
+  // Channel posts are handled by the dedicated price publisher. The shop bot
+  // never starts a conversation or creates topic replies inside a channel.
+  if (update.channel_post || update.edited_channel_post) {
+    return;
+  }
+
   if (update.message) {
     await handleMessage(update.message);
   }
@@ -57,17 +63,23 @@ async function handleUpdate(update) {
 }
 
 async function handleMessage(message) {
+  const chatType = String(message?.chat?.type || "");
+  if (chatType !== "private") {
+    return;
+  }
+
   const chatId = message.chat.id;
   const text = (message.text || "").trim();
+  const command = normalizeTelegramCommand(text);
   const user = await ensureUser(message.from);
 
-  if (text === "/start" || text === "/heybot" || text === "/language" || text === "/lang") {
-    if (text === "/heybot") {
+  if (["/start", "/heybot", "/language", "/lang"].includes(command)) {
+    if (command === "/heybot") {
       await sendHome(chatId, user);
       return;
     }
 
-    if (!user.language || text === "/language" || text === "/lang") {
+    if (!user.language || command === "/language" || command === "/lang") {
       await telegram("sendMessage", {
         chat_id: chatId,
         text: t(user, "chooseLanguage"),
@@ -210,6 +222,23 @@ async function handleMessage(message) {
     return;
   }
 
+  if (["Đặt mua sản phẩm", "Buy products", "🛍 Đặt mua sản phẩm", "🛍 Buy products"].includes(text)) {
+    await sendCategories(chatId, user);
+    return;
+  }
+  if (["Đơn hàng của tôi", "My orders", "📦 Đơn hàng của tôi", "📦 My orders"].includes(text)) {
+    await sendMyOrders(chatId, user);
+    return;
+  }
+  if (["Bảo hành / Hỗ trợ", "Warranty / Support", "💬 Hỗ trợ", "💬 Support"].includes(text)) {
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "supportUsage"), reply_markup: mainMenu(user) });
+    return;
+  }
+  if (["🌐 Ngôn ngữ", "🌐 Language"].includes(text)) {
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "chooseLanguage"), reply_markup: languageMenu() });
+    return;
+  }
+
   if (text === "/synccatalog" || text === "/sync") {
     await adminOnly(message, user, async () => {
       const result = await syncCatalog();
@@ -238,11 +267,17 @@ async function handleMessage(message) {
 
   await telegram("sendMessage", {
     chat_id: chatId,
-    text: t(user, "unknownCommand")
+    text: t(user, "unknownCommand"),
+    reply_markup: mainMenu(user)
   });
 }
 
 async function handleCallback(query) {
+  const callbackChatType = String(query?.message?.chat?.type || "");
+  if (callbackChatType !== "private") {
+    return;
+  }
+
   const chatId = query.message.chat.id;
   let user = await ensureUser(query.from);
   const data = query.data;
@@ -294,29 +329,25 @@ async function handleCallback(query) {
   }
 
   if (data === "products") {
-    const products = await listProducts();
-    if (shopConfig().mode === "reseller") {
-      await sendCatalog(chatId, user, products);
-      return;
-    }
-    const availableProducts = products.filter((product) => Number(product.stock || 0) > 0 || product.source === "zalo");
-    if (availableProducts.length === 0) {
-      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProductsInStock") });
-      return;
-    }
+    await sendCategories(chatId, user);
+    return;
+  }
 
-    await telegram("sendMessage", {
-      chat_id: chatId,
-      text: t(user, "chooseProduct"),
-      reply_markup: {
-        inline_keyboard: availableProducts.map((product) => [
-          {
-            text: `${user.language === "en" ? product.name_en || product.name : product.name} - ${formatLocalizedMoney(product.sale_price, user.language)} - ${product.source === "zalo" && Number(product.stock || 0) <= 0 ? t(user, "catalogItem") : `${t(user, "inStock")} ${product.stock}`}`,
-            callback_data: `buy:${product.id}`
-          }
-        ])
-      }
+  if (data.startsWith("category:")) {
+    const categoryKey = data.slice("category:".length);
+    const products = await listProducts();
+    const matching = products.filter((product) => categoryKeyFor(product) === categoryKey);
+    if (!matching.length) {
+      await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProducts"), reply_markup: mainMenu(user) });
+      return;
+    }
+    const keyboard = matching.slice(0, 60).map((product) => {
+      const name = user.language === "en" ? product.name_en || product.name : product.name;
+      const stock = Number(product.stock || 0) > 0 ? `${t(user, "inStock")} ${product.stock}` : t(user, "catalogItem");
+      return [{ text: `${name} | ${formatLocalizedMoney(product.sale_price ?? product.price, user.language)} | ${stock}`, callback_data: `buy:${product.id}` }];
     });
+    keyboard.push([{ text: user.language === "en" ? "⬅ Categories" : "⬅ Danh mục", callback_data: "products" }]);
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "chooseProduct"), reply_markup: { inline_keyboard: keyboard } });
     return;
   }
 
@@ -329,13 +360,17 @@ async function handleCallback(query) {
       const paymentButton = user.language === "en"
         ? { text: "Binance Pay / USDT", callback_data: `pay_binance:${order.code}` }
         : { text: "ACB / VietQR", callback_data: `pay_bank:${order.code}` };
+      const contactButton = {
+        text: user.language === "en" ? "Send order to shop" : "Gửi đơn cho shop",
+        url: orderContactUrl(order, product, user.language)
+      };
       await telegram(method, {
         chat_id: chatId,
         ...(product.image_url
           ? { photo: product.image_url, caption: t(user, "orderCreated", quotedOrder, product) }
           : { text: t(user, "orderCreated", quotedOrder, product) }),
         reply_markup: {
-          inline_keyboard: [[paymentButton]]
+          inline_keyboard: [[paymentButton], [contactButton]]
         }
       });
     } catch (error) {
@@ -381,17 +416,13 @@ async function handleCallback(query) {
     await telegram("sendMessage", {
       chat_id: chatId,
       text: t(user, "paymentReported", order),
-      reply_markup: { inline_keyboard: [[{ text: t(user, "contactSupport"), url: "https://t.me/Patrick_Tech_Fullapp" }]] }
+      reply_markup: { inline_keyboard: [[{ text: t(user, "contactSupport"), url: orderContactUrl(order, null, user.language) }]] }
     });
     return;
   }
 
   if (data === "my_orders") {
-    const orders = await listUserOrders(user.id);
-    const text = orders.length
-      ? orders.map((order) => formatOrderHistory(user, order)).join("\n\n")
-      : t(user, "noOrders");
-    await telegram("sendMessage", { chat_id: chatId, text });
+    await sendMyOrders(chatId, user);
     return;
   }
 
@@ -413,8 +444,65 @@ async function handleCallback(query) {
 }
 
 async function sendHome(chatId, user) {
+  await telegram("sendMessage", { chat_id: chatId, text: t(user, "welcome"), reply_markup: mainMenu(user) });
+}
+
+async function sendMyOrders(chatId, user) {
+  const orders = await listUserOrders(user.id);
+  const text = orders.length ? orders.map((order) => formatOrderHistory(user, order)).join("\n\n") : t(user, "noOrders");
+  await telegram("sendMessage", { chat_id: chatId, text, reply_markup: mainMenu(user) });
+}
+
+async function sendCategories(chatId, user) {
   const products = await listProducts();
-  await sendCatalog(chatId, user, products, mainMenu(user));
+  const available = products.filter((product) => Number(product.stock || 0) > 0 || product.source === "zalo" || shopConfig().mode === "reseller");
+  if (!available.length) {
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "noProductsInStock"), reply_markup: mainMenu(user) });
+    return;
+  }
+  const categories = new Map();
+  for (const product of available) {
+    const key = categoryKeyFor(product);
+    const name = user.language === "en" ? product.category_en || product.category || (user.language === "en" ? "Products" : "Sản phẩm") : product.category || "Sản phẩm";
+    if (!categories.has(key)) categories.set(key, name);
+  }
+  const keyboard = [...categories].map(([key, name]) => [{ text: name, callback_data: `category:${key}` }]);
+  if (categories.size === 1) {
+    const [key] = categories.keys();
+    const matching = available.filter((product) => categoryKeyFor(product) === key);
+    const productKeyboard = matching.slice(0, 60).map((product) => {
+      const name = user.language === "en" ? product.name_en || product.name : product.name;
+      const stock = Number(product.stock || 0) > 0 ? `${t(user, "inStock")} ${product.stock}` : t(user, "catalogItem");
+      return [{ text: `${name} | ${formatLocalizedMoney(product.sale_price ?? product.price, user.language)} | ${stock}`, callback_data: `buy:${product.id}` }];
+    });
+    await telegram("sendMessage", { chat_id: chatId, text: t(user, "chooseProduct"), reply_markup: { inline_keyboard: productKeyboard } });
+    return;
+  }
+  await telegram("sendMessage", { chat_id: chatId, text: user.language === "en" ? "Choose a category:" : "Vui lòng chọn danh mục sản phẩm:", reply_markup: { inline_keyboard: keyboard } });
+}
+
+function categoryKeyFor(product) {
+  const category = String(product.category || product.category_en || "products").trim().toLowerCase();
+  return encodeURIComponent(category).slice(0, 50);
+}
+
+function normalizeTelegramCommand(text) {
+  const match = String(text || "").match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s|$)/i);
+  return match ? `/${match[1].toLowerCase()}` : String(text || "").trim().toLowerCase();
+}
+
+function orderContactUrl(order, product, language) {
+  const english = language === "en";
+  const productName = english
+    ? product?.name_en || order.product_name_en || product?.name || order.product_name
+    : product?.name || order.product_name;
+  const amount = english
+    ? `$${Number(order.usdAmountRounded || Number(order.amount || 0) / 26000).toFixed(2)}`
+    : `${Number(order.amount || 0).toLocaleString("vi-VN")} VND`;
+  const text = english
+    ? `Hello, I want to order.\nOrder: ${order.code}\nProduct: ${productName}\nAmount: ${amount}`
+    : `Xin chào, tôi muốn đặt hàng.\nMã đơn: ${order.code}\nSản phẩm: ${productName}\nSố tiền: ${amount}`;
+  return `https://t.me/Patrick_Tech_Fullapp?text=${encodeURIComponent(text)}`;
 }
 
 async function sendCatalog(chatId, user, products, replyMarkup) {
